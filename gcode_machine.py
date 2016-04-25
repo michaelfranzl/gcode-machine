@@ -24,13 +24,52 @@ import re
 import logging
 import math
 
-class GcodeProcessor:
-    """ This class can receive G-Code lines before they are sent out to a CNC controller. It's main features are:
+class GcodeMachine:
+    """ This class acts as a state machine, imitating a CNC machine.
+    After setting initial conditions (position, feed, etc.) you can 
+    send Gcode lines to it.
     
-    * variable substitution (e.g. #1, #2 etc.)
-    * dynamic feed override
+    Sent Gcode lines change the state of the machine, most importantly:
+    
+    * position
+    * feed rate
+    * travel distances
+    * etc.
+    
+    In addition, by calling corresponding methods, the machine also can
+    transform the Gcode, e.g. for
+    
+    * variable substitution
+    * feed override
     * code cleanup (comments, spaces, unsupported commands)
-    * breaking lines and arcs down into small linear fragments
+    * fractionizing of lines and arcs down into small linear fragments
+    
+    
+    Typical use:
+    
+    gcm = GcodeMachine()
+    gcm.position = [0,0,0] # initial position
+    
+    input = ["G0 Z-10", "G1 X10 Y10"]
+    output = []
+    for line in input:
+        gcm.set_line(line)
+        gcm.strip()
+        gcm.tidy()
+        gcm.parse_state()
+        gcm.override_feed()
+        gcm.transform_comments()
+        gcm.fractionize()
+        output.append(gcm.line)
+        gcm.done()
+    
+    For each interation of the loop, you should feed the command line
+    into the machine with the method `set_line`. Then, call processing
+    methods as needed for your application. Also, you can inspect the machine
+    state as needed. When done with one line, call `done`.
+    
+    Processing can happen as fast as possible, or in a realtime manner.
+    
     
     Callbacks:
     
@@ -44,39 +83,119 @@ class GcodeProcessor:
     """
     
     def __init__(self):
-        self.logger = logging.getLogger('gcodeprocessor')
-        self.line = ""
-        self.vars = {}
-        self.callback = self._default_callback
-        self.logger.info("Preprocessor Class Initialized")
+        """ Initialization.
+        """
         
+        self.logger = logging.getLogger('gcodeprocessor')
+        
+        
+        ## @var line
+        # Holds the current Gcode line
+        self.line = ""
+        
+        ## @var vars
+        # A dict holding values for variable substitution.
+        self.vars = {}
+        
+        self.callback = self._default_callback
+        
+        ## @var do_feed_override
+        # If set to True, F commands will be replaced with the feed
+        # speed set in `request_feed`. If set to False, no feed speed
+        # processing will be done.
         self.do_feed_override = False
+        
+        ## @var do_fractionize_lines
+        # If set to True, linear movements over the threshold of
+        # `fract_linear_threshold` will be broken down into small line
+        # segments of length `fract_linear_segment_len`. If set to False
+        # no processing is done on lines.
         self.do_fractionize_lines = True
+        
+        ## @var do_fractionize_arcs
+        # If set to True, arcs will be broken up into small line segments.
+        # If set to False, no processing is done on arcs.
         self.do_fractionize_arcs = True
         
-        self.fract_linear_threshold = 0.5 # units: inches or mm
+        ## @var fract_linear_threshold
+        # The threshold for the fractionization of lines.
+        self.fract_linear_threshold = 0.5
+        
+        ## @var fract_linear_segment_len
+        # The length of the segments of fractionized lines.
         self.fract_linear_segment_len = 0.5
         
+        ## @var request_feed
+        # If `do_feed_override` is True, a F command will be inserted
+        # to the currently active command with this value.
         self.request_feed = None
-        self.feed_last = None
+
+        ## @var current_feed
+        # The current feed rate of the machine
+        self.current_feed = None
         
-        # state information mirroring Grbl's
+        ## @var contains_feed
+        # True if the current line contains a F command
         self.contains_feed = False
-        self.current_distance_mode = "G90"
-        self.current_motion_mode = 0
-        self.current_plane_mode = "G17"
-        self.position = [None, None, None] # current xyz position, i.e. self.target of last line
-        self.target = [None, None, None] # xyz target of current line
-        self.offset = [0, 0, 0] # offset of circle center from current xyz position
         
+        ## @var current_distance_mode
+        # Contains the current distance mode of the machine as string
+        self.current_distance_mode = "G90"
+        
+        ## @var current_motion_mode
+        # Contains the current motion mode of the machine as integer (0 to 3)
+        self.current_motion_mode = 0
+        
+        ## @var current_plane_mode
+        # Contains the current plane mode of the machine as string
+        self.current_plane_mode = "G17"
+        
+        ## @var position
+        # Contains the position of the machine before execution
+        # of the currently set line (the target of the last command)
+        self.position = [None, None, None]
+        
+        ## @var target
+        # Contains the position target of the currently set command
+        self.target = [None, None, None]
+        
+        
+        ## @var offset
+        # Contains the offset of the arc center from current position
+        self.offset = [0, 0, 0] 
+        
+        ## @var radius
+        # Contains the radius of the current arc
         self.radius = None
+        
+        ## @var contains_radius
+        # True if the current line contains a R word
         self.contains_radius = False
         
-        self.spindle = None
+        ## @var current_spindle_speed
+        # Contains the current spindle speed (S word)
+        self.current_spindle_speed = None
+        
+        ## @var contains_spindle
+        # True if the current line contains the S word
         self.contains_spindle = False
         
-        self.dist = 0 # distance that current command will travel
-        self.dists = [0, 0, 0] # in xyz
+        ## @var dist
+        # Distance that current line will travel
+        self.dist = 0 
+        
+        ## @var dists
+        # Distance that current line will travel, in [x,y,z] directions
+        self.dists = [0, 0, 0]
+        
+        ## @var line_is_only_comment
+        # True if the current line contains nothing else than a comment
+        self.line_is_only_comment = False
+        
+        ## @var line_is_unsupported_cmd
+        # True if current line is not in the whitelist
+        self.line_is_unsupported_cmd = False
+        
         
         # precompile regular expressions
         self._axes_regexps = []
@@ -111,7 +230,10 @@ class GcodeProcessor:
         self._re_match_cmd_number = re.compile("([GMT])(\d+)")
         self._re_expand_multicommands = re.compile("([GMT])")
 
-        self._whitelist_commands = {
+
+        ## @var whitelist_commands
+        # Strip line from everything that is not in this list
+        self.whitelist_commands = {
             "G": [
                 # non-modal commands
                 4,  # Dwell
@@ -178,10 +300,9 @@ class GcodeProcessor:
             }
         
         self._arc_count = 0
-        self._line_is_only_comment = False
-        self._line_is_unsupported_cmd = False
         
-        # put colors in comments for visualization, keys are G modes
+        ## @var colors
+        # Put colors in comments for visualization. Keys of this dict are motion modes.
         self.colors = {
             0: (.5, .5, .5, 1),  # grey
             1: (.7, .7, 1, 1),   # blue/purple
@@ -189,55 +310,86 @@ class GcodeProcessor:
             3: (0.9, 1, 0.7, 1), # green/yellowish
             }
         
-    def job_new(self):
+        self.logger.info("Preprocessor Class Initialized")
+        
+        
+    def reset(self):
         """
-        Resets state information for a new job.
+        Reset to initial state.
         """
         self.vars = {}
+        self.current_feed = None
+        self.callback("on_feed_change", self.current_feed)
         
         
-    def onboot_init(self):
+        
+    def set_line(self, line):
         """
-        Call this after Grbl has booted. Mimics Grbl's internal state.
+        Load a Gcode line into the machine. It will be available in `self.line`.
+        
+        @param line
+        A string of Gcode.
         """
-        self.feed_last = None # After boot, Grbl's feed is not set.
-        self.callback("on_feed_change", self.feed_last)
+        self.line = line
+        self.line_is_only_comment = self.line and self.line[0] == ";" # TODO make only-comment detection smarter
 
         
     def split_lines(self):
-        if self._line_is_only_comment == True:
+        """
+        Some Gcode generating software spit out 'composite' commands
+        like "M3 T2". This really is bad practice.
+        
+        This method splits such 'composite' commands up into separate
+        commands and returns a list of commands. Machine state is not
+        changed.
+        """
+        if self.line_is_only_comment == True:
             return [self.line]
         else:
             commands = re.sub(self._re_expand_multicommands, "\n\g<0>", self.line).strip()
             lines = commands.split("\n")
             return lines
     
+    
+    def strip(self):
+        """
+        Remove blank spaces and newlines from beginning and end, and remove blank spaces from the middle of the line.
+        """
+        self.line = self.line.replace(" ", "")
+        
         
     def tidy(self):
         """
-        Strips G-Code not supported by Grbl.
-        Set line first with `set_line`. Returns the tidy line. 
+        Strips G-Code not contained in the whitelist.
         """
-        # strip spaces at begin and at end
-        self.line = self.line.strip()
         
         # transform [MG]\d to G\d\d for better parsing
         def format_cmd_number(matchobj):
             cmd = matchobj.group(1)
             cmd_nr = int(matchobj.group(2))
-            self._line_is_unsupported_cmd = not (cmd in self._whitelist_commands and cmd_nr in self._whitelist_commands[cmd])
+            self.line_is_unsupported_cmd = not (cmd in self.whitelist_commands and cmd_nr in self.whitelist_commands[cmd])
             return "{}{:02d}".format(cmd, cmd_nr)
         
         self.line = re.sub(self._re_match_cmd_number, format_cmd_number, self.line)
         
-        if self._line_is_unsupported_cmd:
+        if self.line_is_unsupported_cmd:
             self.line = ";" + self.line + " ;_gerbil.unsupported"
-
-        return self.line
     
     
     def parse_state(self):
-        if self._line_is_only_comment: return
+        """
+        This method...
+        
+        * parses motion mode
+        * parses distance mode
+        * parses plane mode
+        * parses feed rate
+        * parses spindle speed
+        * parses arcs (offsets and radi)
+        * calculates travel distances
+        """
+        
+        if self.line_is_only_comment: return
     
         # parse G0 .. G3 and remember
         m = re.match(self._re_motion_mode, self.line)
@@ -254,10 +406,47 @@ class GcodeProcessor:
         # see if current line has F
         m = re.match(self._re_feed, self.line)
         self.contains_feed = True if m else False
-        if m: self.feed_current = float(m.group(1))
+        if m: self.feed_in_current_line = float(m.group(1))
         
-        self._parse_distance_values()
+        # look for spindle S
+        m = re.match(self._re_spindle, self.line)
+        self.contains_spindle = True if m else False
+        if m: self.current_spindle_speed = int(m.group(1))
         
+        # arc parsing and calculations
+        if self.current_motion_mode == 2 or self.current_motion_mode == 3:
+            self.offset = [None, None, None]
+            for i in range(0, 3):
+                # loop over I, J, K offsets
+                regexp = self._offset_regexps[i]
+                
+                m = re.match(regexp, self.line)
+                if m: self.offset[i] = float(m.group(1))
+                    
+            # parses arcs
+            m = re.match(self._re_radius, self.line)
+            self.contains_radius = True if m else False
+            if m: self.radius = float(m.group(1))
+                
+                
+        # calculate distance traveled by this G-Code cmd in xyz
+        self.dists = [0, 0, 0] 
+        for i in range(0, 3):
+            # loop over X, Y, Z axes
+            regexp = self._axes_regexps[i]
+            
+            m = re.match(regexp, self.line)
+            if m:
+                if self.current_distance_mode == "G90":
+                    # absolute distances
+                    self.target[i] = float(m.group(1))
+                    # calculate distance
+                    self.dists[i] = self.target[i] - self.position[i]
+                else:
+                    # G91 relative distances
+                    self.dists[i] = float(m.group(1))
+                    self.target[i] += self.dists[i]
+                    
         # calculate travelling distance
         self.dist = math.sqrt(self.dists[0] * self.dists[0] + self.dists[1] * self.dists[1] + self.dists[2] * self.dists[2])
         
@@ -271,10 +460,9 @@ class GcodeProcessor:
         
         Also breaks circles into segments.
         
-        This is useful for faster response times when stopping the stream
-        as well as for the dynamic feed adjustment feature of gerbil.
+        Returns a list of command strings. Does not modify the machine state.
         """
-        if self._line_is_only_comment: return [self.line]
+        if self.line_is_only_comment: return [self.line]
     
         result = []
 
@@ -293,22 +481,28 @@ class GcodeProcessor:
     
     
     def done(self):
-        # remember last pos
+        """
+        When all processing/inspecting of a command has been done, call this method.
+        This will virtually 'move' the tool of the machine if the current command
+        is a motion command.
+        """
         if not (self.current_motion_mode == 0 or self.current_motion_mode == 1):
-            # only G1 and G2 can stay active
+            # only G0 and G1 can stay active without re-specifying
             self.current_motion_mode = None 
             
+        # move the 'tool'
         for i in range(0, 3):
             # loop over X, Y, Z axes
             if self.target[i] != None: # keep state
                 self.position[i] = self.target[i]
-    
+
+
     def find_vars(self):
         """
-        Parses all # variables in a G-Code line and populates the internal `vars` dict.
+        Parses all variables in a G-Code line (#1, #2, etc.) and populates
+        the internal `vars` dict with corresponding keys and values
         """
         
-        # find variable assignments
         m = re.match(self._re_set_var, self.line)
         if m:
             key = m.group(1)
@@ -324,7 +518,7 @@ class GcodeProcessor:
         
     def substitute_vars(self):
         """
-        Variable substitution based on the values previously stored in the `vars` dict. When a variable is to be substituted but no substitution value has been set previously in the `vars` dict, a callback "on_var_undefined" will be made and no substitution done. If this happens, it is an User error and the stream should be stopped.
+        Substitute a variable with a value from the `vars` dict.
         """
         keys = re.findall(self._re_use_var, self.line)
         
@@ -340,22 +534,23 @@ class GcodeProcessor:
             else:
                 self.line = self.line.replace("#" + key, str(val))
                 self.logger.info("SUBSTITUED VAR #{} -> {}".format(key, val))
-            
-        return self.line
     
         
     def override_feed(self):
         """
-        Optionally overrides feed dynamically. Set line first with `set_line`
+        Call this method to
+        
+        * get a callback when the current command contains an F word
+        * 
         """
         
-        if self._line_is_only_comment: return
+        if self.line_is_only_comment: return
     
         if self.do_feed_override == False and self.contains_feed:
-            # Simiply update the UI for detected feed
-            if self.feed_last != self.feed_current:
-                self.callback("on_feed_change", self.feed_current)
-            self.feed_last = self.feed_current
+            # Notify parent app of detected feed in current line (useful for UIs)
+            if self.current_feed != self.feed_in_current_line:
+                self.callback("on_feed_change", self.feed_in_current_line)
+            self.current_feed = self.feed_in_current_line
             
             
         if self.do_feed_override == True and self.request_feed:
@@ -363,43 +558,40 @@ class GcodeProcessor:
                 # strip the original F setting
                 self.logger.info("STRIPPING FEED: " + self.line)
                 self.line = re.sub(self._re_feed_replace, "", self.line).strip()
-                
 
-        #print("current motion mode", self.current_motion_mode)
-        if self.do_feed_override == True and self.request_feed and self.current_motion_mode and self.current_motion_mode >= 1 and self.current_motion_mode <= 3:
-            if self.feed_last != self.request_feed:
-                self.line += "F{:0.1f}".format(self.request_feed)
-                self.feed_last = self.request_feed
-                self.logger.info("OVERRIDING FEED: " + str(self.feed_last))
-                self.callback("on_feed_change", self.feed_last)
-        return self.line
+            if (self.current_motion_mode
+                and self.current_motion_mode >= 1
+                and self.current_motion_mode <= 3
+                and self.current_feed != self.request_feed):
+                    self.line += "F{:0.1f}".format(self.request_feed)
+                    self.current_feed = self.request_feed
+                    self.logger.info("OVERRIDING FEED: " + str(self.current_feed))
+                    self.callback("on_feed_change", self.current_feed)
 
         
-    def set_line(self, line):
-        self.line = line
-        self._line_is_only_comment = self.line and self.line[0] == ";" # this line is only a comment
-
 
     def transform_comments(self):
+        """
+        Comments in Gcode can be set with semicolon or parentheses.
+        This method transforms parentheses comments to semicolon comments.
+        """
+        
         # transform () comment at end of line into semicolon comment
         self.line = re.sub(self._re_comment_paren_convert, "\g<1>;\g<2>", self.line)
         
-        # remove all remaining in-line () comments
+        # remove all in-line () comments
         self.line = re.sub(self._re_comment_paren_replace, "", self.line)
 
-        self._line_is_only_comment = self.line and self.line[0] == ";" # this line is only a comment
+        self.line_is_only_comment = self.line and self.line[0] == ";" # this line is only a comment
 
-    def _strip_all_spaces(self):
-        # Remove blank spaces and newlines from beginning and end, and remove blank spaces from the middle of the line.
-        self.line = self.line.replace(" ", "")
-        
-        
-    """
-    This function is a direct port of Grbl's C code into Python (gcode.c)
-    with slight refactoring for Python by Michael Franzl.
-    This function is copyright (c) Sungeun K. Jeon under GNU General Public License 3
-    """
+
     def _fractionize_circular_motion(self):
+        """
+        This function is a direct port of Grbl's C code into Python (gcode.c)
+        with slight refactoring for Python by Michael Franzl.
+        This function is copyright (c) Sungeun K. Jeon under GNU General Public License 3
+        """
+        
         # implies self.current_motion_mode == 2 or self.current_motion_mode == 3
         
         if self.current_plane_mode == "G17":
@@ -473,12 +665,12 @@ class GcodeProcessor:
         
         #print(self.position, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
-        gcode_list = self.mc_arc(self.position, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
+        gcode_list = self._mc_arc(self.position, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
         return gcode_list
         
 
-    def mc_arc(self, position, target, offset, radius, axis_0, axis_1, axis_linear, is_clockwise_arc):
+    def _mc_arc(self, position, target, offset, radius, axis_0, axis_1, axis_linear, is_clockwise_arc):
         """
         This function is a direct port of Grbl's C code into Python (motion_control.c)
         with slight refactoring for Python by Michael Franzl.
@@ -555,8 +747,8 @@ class GcodeProcessor:
                         position_last[a] = position[a]
                         
                 if i == 1:
-                    if self.contains_feed: gcodeline += "F{:.1f}".format(self.feed_current)
-                    if self.contains_spindle: gcodeline += "S{:d}".format(self.spindle)
+                    if self.contains_feed: gcodeline += "F{:.1f}".format(self.feed_in_current_line)
+                    if self.contains_spindle: gcodeline += "S{:d}".format(self.current_spindle_speed)
                     
                 gcode_list.append(gcodeline)
             
@@ -575,8 +767,8 @@ class GcodeProcessor:
            
         if segments <= 1:
             # no segments were rendered (very small arc) so we have to put S and F here
-            if self.contains_feed: txt += "F{:.1f}".format(self.feed_current)
-            if self.contains_spindle: txt += "S{:d}".format(self.spindle)
+            if self.contains_feed: txt += "F{:.1f}".format(self.feed_in_current_line)
+            if self.contains_spindle: txt += "S{:d}".format(self.current_spindle_speed)
                 
         gcode_list.append(gcodeline)
         
@@ -619,8 +811,8 @@ class GcodeProcessor:
                     txt += "{}{:0.3f}".format(self._axes_words[i], segment_length)
                 
             if k == 0:
-                if self.contains_feed: txt += "F{:.1f}".format(self.feed_current)
-                if self.contains_spindle: txt += "S{:d}".format(self.spindle)
+                if self.contains_feed: txt += "F{:.1f}".format(self.feed_in_current_line)
+                if self.contains_spindle: txt += "S{:d}".format(self.current_spindle_speed)
                 
             
             gcode_list.append(txt)
@@ -628,52 +820,9 @@ class GcodeProcessor:
         gcode_list.append(";_gerbil.color_end")
         gcode_list.append(";_gerbil.line_end")
         return gcode_list
-    
-       
-    def _parse_distance_values(self):
-        #self.target = self.position
-        
-        # look for spindle
-        m = re.match(self._re_spindle, self.line)
-        self.contains_spindle = True if m else False
-        if m: self.spindle = int(m.group(1))
-        
-        if self.current_motion_mode == 2 or self.current_motion_mode == 3:
-            self.offset = [None, None, None]
-            for i in range(0, 3):
-                # loop over I, J, K offsets
-                regexp = self._offset_regexps[i]
-                
-                m = re.match(regexp, self.line)
-                if m: self.offset[i] = float(m.group(1))
-                    
-            m = re.match(self._re_radius, self.line)
-            self.contains_radius = True if m else False
-            if m: self.radius = float(m.group(1))
-
-                
-        self.dists = [0, 0, 0] # distance traveled by this G-Code cmd in xyz
-        for i in range(0, 3):
-            # loop over X, Y, Z axes
-            regexp = self._axes_regexps[i]
-            
-            m = re.match(regexp, self.line)
-            if m:
-                if self.current_distance_mode == "G90":
-                    # absolute distances
-                    self.target[i] = float(m.group(1))
-                    # calculate distance
-                    self.dists[i] = self.target[i] - self.position[i]
-                else:
-                    # G91 relative distances
-                    self.dists[i] = float(m.group(1))
-                    self.target[i] += self.dists[i]
 
         
-        
-            
-        
-    
+
 
     def _default_callback(self, status, *args):
         print("PREPROCESSOR DEFAULT CALLBACK", status, args)
