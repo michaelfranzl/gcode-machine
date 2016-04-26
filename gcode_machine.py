@@ -23,13 +23,14 @@ OTHER DEALINGS IN THE SOFTWARE.
 import re
 import logging
 import math
+import numpy as np
 
 class GcodeMachine:
-    """ This class acts as a state machine, imitating a CNC machine.
-    After setting initial conditions (position, feed, etc.) you can 
-    send Gcode lines to it.
+    """ This class is a state machine, emulating a simple CNC machine.
     
-    Sent Gcode lines change the state of the machine, most importantly:
+    After setting initial conditions (position, feed, etc.) you can 
+    send Gcode lines to it. Sent Gcode lines change the state of the
+    machine, most importantly:
     
     * position
     * feed rate
@@ -56,6 +57,8 @@ class GcodeMachine:
         gcm.set_line(line)
         gcm.strip()
         gcm.tidy()
+        gcm.find_vars()
+        gcm.substitute_vars()
         gcm.parse_state()
         gcm.override_feed()
         gcm.transform_comments()
@@ -82,7 +85,7 @@ class GcodeMachine:
     : 1 argument: the key of the undefined variable
     """
     
-    def __init__(self):
+    def __init__(self, impos=(0,0,0), ics="G54", cs_offsets={"G54":(0,0,0)}):
         """ Initialization.
         """
         
@@ -97,6 +100,7 @@ class GcodeMachine:
         # A dict holding values for variable substitution.
         self.vars = {}
         
+        ## @var callback method for parent applications
         self.callback = self._default_callback
         
         ## @var do_feed_override
@@ -150,15 +154,35 @@ class GcodeMachine:
         # Contains the current plane mode of the machine as string
         self.current_plane_mode = "G17"
         
-        ## @var position
-        # Contains the position of the machine before execution
+       
+        ## @var cs_offsets
+        # Coordinate system offsets. A Python dict with
+        # 3-tuples as offsets.
+        self.cs_offsets = cs_offsets
+        
+        ## @var pos_m
+        # Contains the current machine position before execution
         # of the currently set line (the target of the last command)
-        self.position = [None, None, None]
+        self.pos_m = list(impos) # initial machine position
         
-        ## @var target
-        # Contains the position target of the currently set command
-        self.target = [None, None, None]
+        ## @var pos_w
+        # Contains the current working position before execution
+        # of the currently set line (the target of the last command)
+        self.pos_w = list(np.add(self.cs_offsets[self.cs], self.pos_m))
         
+        ## @var cs
+        # Current coordinate system as string.
+        self.cs = ics
+        
+        ## @var target_m
+        # Contains the position target of the currently set command in
+        # the machine coordinate system.
+        self.target_m = [None, None, None]
+        
+        ## @var target_m
+        # Contains the position target of the currently set command in
+        # the currently seleted coordinate system.
+        self.target_w = [None, None, None]
         
         ## @var offset
         # Contains the offset of the arc center from current position
@@ -186,7 +210,7 @@ class GcodeMachine:
         
         ## @var dists
         # Distance that current line will travel, in [x,y,z] directions
-        self.dists = [0, 0, 0]
+        self.dist_xyz = [0, 0, 0]
         
         ## @var line_is_only_comment
         # True if the current line contains nothing else than a comment
@@ -321,6 +345,25 @@ class GcodeMachine:
         self.current_feed = None
         self.callback("on_feed_change", self.current_feed)
         
+    @property
+    def position_m(self):
+        return list(self.pos_m)
+    
+    @position_m.setter
+    def position_m(self, pos):
+        print("position_m setter")
+        self.pos_m = list(pos)
+        self.pos_w = np.add(self.cs_offsets[self.cs], self.pos_m)
+        
+    @property
+    def current_cs(self):
+        return self.cs
+    
+    @current_cs.setter
+    def current_cs(self, label):
+        print("current_cs setter")
+        self.cs = label
+        self.pos_w = np.add(self.cs_offsets[self.cs], self.pos_m)
         
         
     def set_line(self, line):
@@ -430,7 +473,7 @@ class GcodeMachine:
                 
                 
         # calculate distance traveled by this G-Code cmd in xyz
-        self.dists = [0, 0, 0] 
+        self.dist_xyz = [0, 0, 0] 
         for i in range(0, 3):
             # loop over X, Y, Z axes
             regexp = self._axes_regexps[i]
@@ -439,17 +482,23 @@ class GcodeMachine:
             if m:
                 if self.current_distance_mode == "G90":
                     # absolute distances
-                    self.target[i] = float(m.group(1))
+                    self.target_m[i] = self.cs_offsets[self.cs][i] + float(m.group(1))
+                    self.target_w[i] = float(m.group(1))
+                    
                     # calculate distance
-                    self.dists[i] = self.target[i] - self.position[i]
+                    self.dist_xyz[i] = self.target_m[i] - self.pos_m[i]
                 else:
                     # G91 relative distances
-                    self.dists[i] = float(m.group(1))
-                    self.target[i] += self.dists[i]
+                    self.dist_xyz[i] = float(m.group(1))
+                    self.target_m[i] += self.dist_xyz[i]
+                    self.target_w[i] += self.dist_xyz[i]
+            else:
+                # no movement along this axis, stays the same
+                self.target_m[i] = self.pos_m[i]
+                self.target_w[i] = self.pos_w[i]
                     
         # calculate travelling distance
-        self.dist = math.sqrt(self.dists[0] * self.dists[0] + self.dists[1] * self.dists[1] + self.dists[2] * self.dists[2])
-        
+        self.dist = math.sqrt(self.dist_xyz[0] * self.dist_xyz[0] + self.dist_xyz[1] * self.dist_xyz[1] + self.dist_xyz[2] * self.dist_xyz[2])
         
         
     
@@ -493,8 +542,11 @@ class GcodeMachine:
         # move the 'tool'
         for i in range(0, 3):
             # loop over X, Y, Z axes
-            if self.target[i] != None: # keep state
-                self.position[i] = self.target[i]
+            if self.target_m[i] != None: # keep state
+                self.pos_m[i] = self.target_m[i]
+                self.pos_w[i] = self.target_w[i]
+                
+        #print("DONE", self.line, self.pos_m, self.pos_w, self.target)
 
 
     def find_vars(self):
@@ -610,14 +662,14 @@ class GcodeMachine:
         is_clockwise_arc = True if self.current_motion_mode == 2 else False
             
         # deltas between target and (current) position
-        x = self.target[axis_0] - self.position[axis_0]
-        y = self.target[axis_1] - self.position[axis_1]
+        x = self.target_w[axis_0] - self.pos_w[axis_0]
+        y = self.target_w[axis_1] - self.pos_w[axis_1]
         
         if self.contains_radius:
             # RADIUS MODE
             # R given, no IJK given, self.offset must be calculated
             
-            if self.target == self.position:
+            if self.target_w == self.pos_w:
                 self.logger.error("Arc in Radius Mode: Identical start/end {}".format(self.line))
                 return [self.line]
             
@@ -663,9 +715,10 @@ class GcodeMachine:
                 if delta_r > (0.001 * self.radius):
                     self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
         
-        #print(self.position, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
+        #print(self.pos_m, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
-        gcode_list = self._mc_arc(self.position, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
+        #print("MCARC", self.pos_m, self.target)
+        gcode_list = self._mc_arc(self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
         return gcode_list
         
@@ -798,11 +851,11 @@ class GcodeMachine:
                 
             for i in range(0, 3):
                 # loop over X, Y, Z axes
-                segment_length = self.dists[i] / num_fractions
+                segment_length = self.dist_xyz[i] / num_fractions
                 coord_rel = (k + 1) * segment_length
                 if self.current_distance_mode == "G90":
                     # absolute distances
-                    coord_abs = self.position[i] + coord_rel
+                    coord_abs = self.pos_m[i] + coord_rel
                     if coord_rel != 0:
                         # only output for changes
                         txt += "{}{:0.3f}".format(self._axes_words[i], coord_abs)
