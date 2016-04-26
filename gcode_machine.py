@@ -236,7 +236,7 @@ class GcodeMachine:
             self._offset_regexps.append(re.compile(".*" + word + "([-.\d]+)"))
             
         self._re_radius = re.compile(".*R([-.\d]+)")
-        self._re_spindle = re.compile(".*S([-.\d]+)")
+        self._re_spindle = re.compile(".*S([\d]+)")
         
         self._re_use_var = re.compile("#(\d*)")
         self._re_set_var = re.compile("^\s*#(\d+)=([\d.-]+)")
