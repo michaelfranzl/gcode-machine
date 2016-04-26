@@ -246,6 +246,7 @@ class GcodeMachine:
         self._re_motion_mode = re.compile("G([0123])*([^\\d]|$)")
         self._re_distance_mode = re.compile("(G9[01])([^\d]|$)")
         self._re_plane_mode = re.compile("(G1[789])([^\d]|$)")
+        self._re_cs = re.compile("(G5[4-9])")
         
         self._re_comment_paren_convert = re.compile("(.*)\((.*?)\)\s*$")
         self._re_comment_paren_replace = re.compile(r"\(.*?\)")
@@ -352,7 +353,6 @@ class GcodeMachine:
     
     @position_m.setter
     def position_m(self, pos):
-        print("position_m setter")
         self.pos_m = list(pos)
         self.pos_w = np.add(self.cs_offsets[self.cs], self.pos_m)
         
@@ -362,9 +362,8 @@ class GcodeMachine:
     
     @current_cs.setter
     def current_cs(self, label):
-        print("current_cs setter")
         self.cs = label
-        self.pos_w = np.add(self.cs_offsets[self.cs], self.pos_m)
+        self.pos_w = np.subtract(self.pos_m, self.cs_offsets[self.cs])
         
         
     def set_line(self, line):
@@ -437,7 +436,7 @@ class GcodeMachine:
     
         # parse G0 .. G3 and remember
         m = re.match(self._re_motion_mode, self.line)
-        if m:self.current_motion_mode = int(m.group(1))
+        if m: self.current_motion_mode = int(m.group(1))
         
         # parse G90 and G91 and remember
         m = re.match(self._re_distance_mode, self.line)
@@ -446,6 +445,9 @@ class GcodeMachine:
         # parse G17, G18 and G19 and remember
         m = re.match(self._re_plane_mode, self.line)
         if m: self.current_plane_mode = m.group(1)
+        
+        m = re.match(self._re_cs, self.line)
+        if m: self.current_cs = m.group(1)
             
         # see if current line has F
         m = re.match(self._re_feed, self.line)
@@ -670,7 +672,7 @@ class GcodeMachine:
             # RADIUS MODE
             # R given, no IJK given, self.offset must be calculated
             
-            if self.target_w == self.pos_w:
+            if tuple(self.target_w) == tuple(self.pos_w):
                 self.logger.error("Arc in Radius Mode: Identical start/end {}".format(self.line))
                 return [self.line]
             
@@ -856,7 +858,7 @@ class GcodeMachine:
                 coord_rel = (k + 1) * segment_length
                 if self.current_distance_mode == "G90":
                     # absolute distances
-                    coord_abs = self.pos_m[i] + coord_rel
+                    coord_abs = self.pos_w[i] + coord_rel
                     if coord_rel != 0:
                         # only output for changes
                         txt += "{}{:0.3f}".format(self._axes_words[i], coord_abs)
