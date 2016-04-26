@@ -160,6 +160,10 @@ class GcodeMachine:
         # 3-tuples as offsets.
         self.cs_offsets = cs_offsets
         
+        ## @var cs
+        # Current coordinate system as string.
+        self.cs = ics
+        
         ## @var pos_m
         # Contains the current machine position before execution
         # of the currently set line (the target of the last command)
@@ -169,10 +173,7 @@ class GcodeMachine:
         # Contains the current working position before execution
         # of the currently set line (the target of the last command)
         self.pos_w = list(np.add(self.cs_offsets[self.cs], self.pos_m))
-        
-        ## @var cs
-        # Current coordinate system as string.
-        self.cs = ics
+       
         
         ## @var target_m
         # Contains the position target of the currently set command in
