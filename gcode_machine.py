@@ -387,6 +387,8 @@ class GcodeMachine:
         * parses spindle speed
         * parses arcs (offsets and radi)
         * calculates travel distances
+        
+        ... and updates the machine's state accordingly.
         """
         
         if self.line_is_only_comment: return
@@ -469,7 +471,7 @@ class GcodeMachine:
         
         Also breaks circles into segments.
         
-        Returns a list of command strings. Does not modify the machine state.
+        Returns a list of command strings. Does not update the machine state.
         """
         if self.line_is_only_comment: return [self.line]
     

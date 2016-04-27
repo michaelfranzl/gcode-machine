@@ -76,7 +76,7 @@ Linear fractionization of arcs:
     gcm.parse_state()
     print('\n'.join(gcm.fractionize()))
     
-Output: 
+Result: 
 
     ;_gcm.arc_begin[G2 X10 Y10 I5 J5]
     ;_gcm.color_begin[0.35,0.50,0.40]
@@ -92,6 +92,38 @@ Output:
     X10Y10
     ;_gcm.color_end
     ;_gcm.arc_end
+
+    
+Comment transform:
+
+    gcm.set_line("G0 X0 (bob) Y0 (alice)")
+    gcm.transform_comments()
+    print(gcm.line)
+    
+Result:
+
+    G0 X0  Y0 ;alice
+
+    
+Strip unsupported commands (whitelist based):
+
+    gcm.set_line("T2")
+    gcm.tidy()
+    print(gcm.line)
+    
+Result:
+
+    ;T02 ;_gcm.unsupported
+    
+    
+Split commands (some Gcode generators do this stupid thing):
+
+    gcm.set_line("G55 M3 T2")
+    gcm.split_lines()
+    
+Result:
+
+    ['G55 ', 'M3 ', 'T2']
 
 
 ## License
