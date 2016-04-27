@@ -129,7 +129,7 @@ class GcodeMachine:
         ## @var pos_w
         # Contains the current working position before execution
         # of the currently set line (the target of the last command)
-        self.pos_w = list(np.add(self.cs_offsets[self.cs], self.pos_m))
+        self.pos_w = list(np.subtract(self.pos_m, self.cs_offsets[self.cs]))
        
         
         ## @var target_m
@@ -311,7 +311,7 @@ class GcodeMachine:
     @position_m.setter
     def position_m(self, pos):
         self.pos_m = list(pos)
-        self.pos_w = list(np.add(self.cs_offsets[self.cs], self.pos_m))
+        self.pos_w = list(np.subtract(self.pos_m, self.cs_offsets[self.cs]))
         
     @property
     def current_cs(self):
@@ -320,7 +320,7 @@ class GcodeMachine:
     @current_cs.setter
     def current_cs(self, label):
         self.cs = label
-        self.pos_w = np.subtract(self.pos_m, self.cs_offsets[self.cs])
+        self.pos_w = list(np.subtract(self.pos_m, self.cs_offsets[self.cs]))
         
         
     def set_line(self, line):
@@ -658,8 +658,9 @@ class GcodeMachine:
             # CENTER OFFSET MODE, no R given so must be calculated
             
             if self.offset[axis_0] == None or self.offset[axis_1] == None:
-                self.logger.error("Arc in Offset Mode: No offsets in plane")
-                return [self.line]
+                raise Exception("Arc in Offset Mode: No offsets in plane. {}".format(self.line))
+                #self.logger.error("Arc in Offset Mode: No offsets in plane")
+                #return [self.line]
             
             # Arc radius from center to target
             x -= self.offset[axis_0]
@@ -673,13 +674,17 @@ class GcodeMachine:
             delta_r = math.fabs(target_r - self.radius);
             if delta_r > 0.005:
                 if delta_r > 0.5:
-                    self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    #self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    #return []
                 if delta_r > (0.001 * self.radius):
-                    self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    #self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    #return []
         
         #print(self.pos_m, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
-        #print("MCARC", self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
+        #print("MCARC", self.line, self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
         gcode_list = self._mc_arc(self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
@@ -741,7 +746,7 @@ class GcodeMachine:
             theta_per_segment = angular_travel / segments
             linear_per_segment = (target[axis_linear] - position[axis_linear]) / segments
             
-            position_last = [None, None, None]
+            position_last = list(position)
             for i in range(1, segments):
                 cos_Ti = math.cos(i * theta_per_segment);
                 sin_Ti = math.sin(i * theta_per_segment);
