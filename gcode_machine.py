@@ -80,7 +80,7 @@ class GcodeMachine:
         
         ## @var fract_linear_threshold
         # The threshold for the fractionization of lines.
-        self.fract_linear_threshold = 0.5
+        self.fract_linear_threshold = 1
         
         ## @var fract_linear_segment_len
         # The length of the segments of fractionized lines.
@@ -170,14 +170,11 @@ class GcodeMachine:
         # Distance that current line will travel, in [x,y,z] directions
         self.dist_xyz = [0, 0, 0]
         
-        ## @var line_is_only_comment
-        # True if the current line contains nothing else than a comment
-        self.line_is_only_comment = False
-        
         ## @var line_is_unsupported_cmd
         # True if current line is not in the whitelist
         self.line_is_unsupported_cmd = False
         
+        self.comment = ""
         
         # precompile regular expressions
         self._axes_regexps = []
@@ -207,8 +204,9 @@ class GcodeMachine:
         
         self._re_comment_paren_convert = re.compile("(.*)\((.*?)\)\s*$")
         self._re_comment_paren_replace = re.compile(r"\(.*?\)")
-        self._re_comment_other_replace = re.compile(r"[;%](?!_gcm).*")
-        self._re_comment_all_replace = re.compile(r"[;%].*")
+        #self._re_comment_other_replace = re.compile(r"[;%](?!_gcm).*")
+        #self._re_comment_all_replace = re.compile(r"[;%].*")
+        self._re_comment_get_comment = re.compile("(.*?)(;.*)")
         
         self._re_match_cmd_number = re.compile("([GMT])(\d+)")
         self._re_expand_multicommands = re.compile("([GMT])")
@@ -302,6 +300,7 @@ class GcodeMachine:
         """
         self.vars = {}
         self.current_feed = None
+        self.current_motion_mode = 0
         self.callback("on_feed_change", self.current_feed)
         
     @property
@@ -331,7 +330,7 @@ class GcodeMachine:
         A string of Gcode.
         """
         self.line = line
-        self.line_is_only_comment = self.line and self.line[0] == ";" # TODO make only-comment detection smarter
+        self.transform_comments()
 
         
     def split_lines(self):
@@ -343,19 +342,18 @@ class GcodeMachine:
         commands and returns a list of commands. Machine state is not
         changed.
         """
-        if self.line_is_only_comment == True:
-            return [self.line]
-        else:
-            commands = re.sub(self._re_expand_multicommands, "\n\g<0>", self.line).strip()
-            lines = commands.split("\n")
-            return lines
+        commands = re.sub(self._re_expand_multicommands, "\n\g<0>", self.line).strip()
+        lines = commands.split("\n")
+        lines[0] = lines[0] + self.comment # preserve comment
+        return lines
     
     
     def strip(self):
         """
         Remove blank spaces and newlines from beginning and end, and remove blank spaces from the middle of the line.
         """
-        self.line = self.line.replace(" ", "")
+        #self.line = self.line.replace(" ", "")
+        self.line = self.line.strip()
         
         
     def tidy(self):
@@ -390,8 +388,6 @@ class GcodeMachine:
         
         ... and updates the machine's state accordingly.
         """
-        
-        if self.line_is_only_comment: return
     
         # parse G0 .. G3 and remember
         m = re.match(self._re_motion_mode, self.line)
@@ -473,8 +469,7 @@ class GcodeMachine:
         
         Returns a list of command strings. Does not update the machine state.
         """
-        if self.line_is_only_comment: return [self.line]
-    
+
         result = []
 
         if self.do_fractionize_lines == True and self.current_motion_mode == 1 and self.dist > self.fract_linear_threshold:
@@ -488,8 +483,9 @@ class GcodeMachine:
             # return the line as it was passed in
             result = [self.line]
 
+        result[0] = result[0] + self.comment # preserve comment
         return result
-    
+        
     
     def done(self):
         """
@@ -507,6 +503,9 @@ class GcodeMachine:
             if self.target_m[i] != None: # keep state
                 self.pos_m[i] = self.target_m[i]
                 self.pos_w[i] = self.target_w[i]
+                
+        # re-add comment
+        self.line += self.comment
                 
         #print("DONE", self.line, self.pos_m, self.pos_w, self.target)
 
@@ -557,8 +556,6 @@ class GcodeMachine:
         * get a callback when the current command contains an F word
         * 
         """
-        
-        if self.line_is_only_comment: return
     
         if self.do_feed_override == False and self.contains_feed:
             # Notify parent app of detected feed in current line (useful for UIs)
@@ -596,7 +593,12 @@ class GcodeMachine:
         # remove all in-line () comments
         self.line = re.sub(self._re_comment_paren_replace, "", self.line)
 
-        self.line_is_only_comment = self.line and self.line[0] == ";" # this line is only a comment
+        m = re.match(self._re_comment_get_comment, self.line)
+        if m:
+            self.line = m.group(1)
+            self.comment = m.group(2)
+        else:
+            self.comment = ""
 
 
     def _fractionize_circular_motion(self):
