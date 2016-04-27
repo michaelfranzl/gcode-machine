@@ -29,50 +29,7 @@ class GcodeMachine:
     """ This implements a simple CNC state machine that can be used
     for simulation and processing of G-code.
     
-    After setting initial machine conditions (position, feed, etc.)
-    you can send Gcode lines to it. Sent Gcode lines change the state
-    of the machine, most importantly:
-    
-    * position
-    * feed rate
-    * travel distances
-    * etc.
-    
-    In addition, by calling corresponding methods, the machine also can
-    transform the Gcode, e.g. for
-    
-    * variable substitution
-    * feed override
-    * code cleanup (comments, spaces, unsupported commands)
-    * fractionizing of lines and arcs down into small linear fragments
-    
-    
-    Typical use (other methods available, see source code):
-    
-    gcm = GcodeMachine()
-    gcm.position = [0,0,0] # initial position
-    
-    input = ["G0 Z-10", "G1 X10 Y10"]
-    output = []
-    for line in input:
-        gcm.set_line(line) # feed the line into the machine
-        gcm.strip() # clean up whitespace
-        gcm.tidy() # filter commands by a whitelist
-        gcm.find_vars() # parse variable usages
-        gcm.substitute_vars() # substitute variables
-        gcm.parse_state() # parse positions etc. and update the machine state
-        gcm.override_feed() # substitute F values
-        gcm.transform_comments() # transform parentheses to semicolon comments
-        output.append(gcm.line) # read the processed line back from the machine
-        gcm.done() # update the machine position
-    
-    For each interation of the loop, you should feed the command line
-    into the machine with the method `set_line`. Then, call processing
-    methods as needed for your application. Also, you can inspect the machine
-    state as needed. When done with one line, call `done`.
-    
-    Processing can happen as fast as possible, or asynchronously in a realtime manner.
-    
+    For usage, see README.md.
     
     Callbacks:
     
@@ -89,7 +46,7 @@ class GcodeMachine:
         """ Initialization.
         """
         
-        self.logger = logging.getLogger('gcodeprocessor')
+        self.logger = logging.getLogger('gcode_machine')
         
         
         ## @var line
