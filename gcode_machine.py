@@ -1,5 +1,5 @@
 """
-Gerbil - Copyright (c) 2015 Michael Franzl
+gcode_machine - Copyright (c) 2016 Michael Franzl
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
@@ -26,11 +26,12 @@ import math
 import numpy as np
 
 class GcodeMachine:
-    """ This class is a state machine, emulating a simple CNC machine.
+    """ This implements a simple CNC state machine that can be used
+    for simulation and processing of G-code.
     
-    After setting initial conditions (position, feed, etc.) you can 
-    send Gcode lines to it. Sent Gcode lines change the state of the
-    machine, most importantly:
+    After setting initial machine conditions (position, feed, etc.)
+    you can send Gcode lines to it. Sent Gcode lines change the state
+    of the machine, most importantly:
     
     * position
     * feed rate
@@ -46,7 +47,7 @@ class GcodeMachine:
     * fractionizing of lines and arcs down into small linear fragments
     
     
-    Typical use:
+    Typical use (other methods available, see source code):
     
     gcm = GcodeMachine()
     gcm.position = [0,0,0] # initial position
@@ -54,24 +55,23 @@ class GcodeMachine:
     input = ["G0 Z-10", "G1 X10 Y10"]
     output = []
     for line in input:
-        gcm.set_line(line)
-        gcm.strip()
-        gcm.tidy()
-        gcm.find_vars()
-        gcm.substitute_vars()
-        gcm.parse_state()
-        gcm.override_feed()
-        gcm.transform_comments()
-        gcm.fractionize()
-        output.append(gcm.line)
-        gcm.done()
+        gcm.set_line(line) # feed the line into the machine
+        gcm.strip() # clean up whitespace
+        gcm.tidy() # filter commands by a whitelist
+        gcm.find_vars() # parse variable usages
+        gcm.substitute_vars() # substitute variables
+        gcm.parse_state() # parse positions etc. and update the machine state
+        gcm.override_feed() # substitute F values
+        gcm.transform_comments() # transform parentheses to semicolon comments
+        output.append(gcm.line) # read the processed line back from the machine
+        gcm.done() # update the machine position
     
     For each interation of the loop, you should feed the command line
     into the machine with the method `set_line`. Then, call processing
     methods as needed for your application. Also, you can inspect the machine
     state as needed. When done with one line, call `done`.
     
-    Processing can happen as fast as possible, or in a realtime manner.
+    Processing can happen as fast as possible, or asynchronously in a realtime manner.
     
     
     Callbacks:
@@ -250,7 +250,7 @@ class GcodeMachine:
         
         self._re_comment_paren_convert = re.compile("(.*)\((.*?)\)\s*$")
         self._re_comment_paren_replace = re.compile(r"\(.*?\)")
-        self._re_comment_other_replace = re.compile(r"[;%](?!_gerbil).*")
+        self._re_comment_other_replace = re.compile(r"[;%](?!_gcm).*")
         self._re_comment_all_replace = re.compile(r"[;%].*")
         
         self._re_match_cmd_number = re.compile("([GMT])(\d+)")
@@ -354,7 +354,7 @@ class GcodeMachine:
     @position_m.setter
     def position_m(self, pos):
         self.pos_m = list(pos)
-        self.pos_w = np.add(self.cs_offsets[self.cs], self.pos_m)
+        self.pos_w = list(np.add(self.cs_offsets[self.cs], self.pos_m))
         
     @property
     def current_cs(self):
@@ -416,7 +416,7 @@ class GcodeMachine:
         self.line = re.sub(self._re_match_cmd_number, format_cmd_number, self.line)
         
         if self.line_is_unsupported_cmd:
-            self.line = ";" + self.line + " ;_gerbil.unsupported"
+            self.line = ";" + self.line + " ;_gcm.unsupported"
     
     
     def parse_state(self):
@@ -720,7 +720,8 @@ class GcodeMachine:
         
         #print(self.pos_m, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
-        #print("MCARC", self.pos_m, self.target)
+        #print("MCARC", self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
+        
         gcode_list = self._mc_arc(self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
         
         return gcode_list
@@ -736,12 +737,13 @@ class GcodeMachine:
         self._arc_count += 1
         
         gcode_list = []
-        gcode_list.append(";_gerbil.arc_begin[{}]".format(self.line))
+        gcode_list.append(";_gcm.arc_begin[{}]".format(self.line))
         
+        # make every other arc different color
         col = self.colors[self.current_motion_mode]
         fac = 1 if self._arc_count % 2 == 0 else 0.5
         col = tuple(c * fac for c in col)
-        gcode_list.append(";_gerbil.color_begin[{:.2f},{:.2f},{:.2f}]".format(*col))
+        gcode_list.append(";_gcm.color_begin[{:.2f},{:.2f},{:.2f}]".format(*col))
         
         do_restore_distance_mode = False
         if self.current_distance_mode == "G91":
@@ -831,18 +833,18 @@ class GcodeMachine:
         if do_restore_distance_mode == True:
           gcode_list.append(self.current_distance_mode)
         
-        gcode_list.append(";_gerbil.color_end")
-        gcode_list.append(";_gerbil.arc_end")
+        gcode_list.append(";_gcm.color_end")
+        gcode_list.append(";_gcm.arc_end")
         
         return gcode_list
     
         
     def _fractionize_linear_motion(self):
         gcode_list = []
-        gcode_list.append(";_gerbil.line_begin:'{}'".format(self.line))
+        gcode_list.append(";_gcm.line_begin:'{}'".format(self.line))
         
         col = self.colors[self.current_motion_mode]
-        gcode_list.append(";_gerbil.color_begin[{:.2f},{:.2f},{:.2f}]".format(col[0], col[1], col[2]))
+        gcode_list.append(";_gcm.color_begin[{:.2f},{:.2f},{:.2f}]".format(col[0], col[1], col[2]))
         
         num_fractions = int(self.dist / self.fract_linear_segment_len)
         
@@ -862,9 +864,11 @@ class GcodeMachine:
                     if coord_rel != 0:
                         # only output for changes
                         txt += "{}{:0.3f}".format(self._axes_words[i], coord_abs)
+                        txt = txt.rstrip("0").rstrip(".")
                 else:
                     # relative distances
                     txt += "{}{:0.3f}".format(self._axes_words[i], segment_length)
+                    txt = txt.rstrip("0").rstrip(".")
                 
             if k == 0:
                 if self.contains_feed: txt += "F{:.1f}".format(self.feed_in_current_line)
@@ -873,8 +877,8 @@ class GcodeMachine:
             
             gcode_list.append(txt)
         
-        gcode_list.append(";_gerbil.color_end")
-        gcode_list.append(";_gerbil.line_end")
+        gcode_list.append(";_gcm.color_end")
+        gcode_list.append(";_gcm.line_end")
         return gcode_list
 
         
