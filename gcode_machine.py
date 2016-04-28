@@ -176,6 +176,8 @@ class GcodeMachine:
         
         self.comment = ""
         
+        self.special_comment_prefix = "_gcm"
+        
         # precompile regular expressions
         self._axes_regexps = []
         self._axes_words = ["X", "Y", "Z"]
@@ -204,8 +206,6 @@ class GcodeMachine:
         
         self._re_comment_paren_convert = re.compile("(.*)\((.*?)\)\s*$")
         self._re_comment_paren_replace = re.compile(r"\(.*?\)")
-        #self._re_comment_other_replace = re.compile(r"[;%](?!_gcm).*")
-        #self._re_comment_all_replace = re.compile(r"[;%].*")
         self._re_comment_get_comment = re.compile("(.*?)(;.*)")
         
         self._re_match_cmd_number = re.compile("([GMT])(\d+)")
@@ -278,17 +278,6 @@ class GcodeMachine:
                 4,
                 5,
                 ]
-            }
-        
-        self._arc_count = 0
-        
-        ## @var colors
-        # Put colors in comments for visualization. Keys of this dict are motion modes.
-        self.colors = {
-            0: (.5, .5, .5, 1),  # grey
-            1: (.7, .7, 1, 1),   # blue/purple
-            2: (0.7, 1, 0.8, 1), # greenish
-            3: (0.9, 1, 0.7, 1), # green/yellowish
             }
         
         self.logger.info("Preprocessor Class Initialized")
@@ -371,7 +360,7 @@ class GcodeMachine:
         self.line = re.sub(self._re_match_cmd_number, format_cmd_number, self.line)
         
         if self.line_is_unsupported_cmd:
-            self.line = ";" + self.line + " ;_gcm.unsupported"
+            self.line = ";" + self.line + " ;" + self.special_comment_prefix + ".unsupported"
     
     
     def parse_state(self):
@@ -605,7 +594,8 @@ class GcodeMachine:
         """
         This function is a direct port of Grbl's C code into Python (gcode.c)
         with slight refactoring for Python by Michael Franzl.
-        This function is copyright (c) Sungeun K. Jeon under GNU General Public License 3
+        See https://github.com/grbl/grbl
+        
         """
         
         # implies self.current_motion_mode == 2 or self.current_motion_mode == 3
@@ -697,19 +687,11 @@ class GcodeMachine:
         """
         This function is a direct port of Grbl's C code into Python (motion_control.c)
         with slight refactoring for Python by Michael Franzl.
-        This function is copyright (c) Sungeun K. Jeon under GNU General Public License 3
+        See https://github.com/grbl/grbl
         """
         
-        self._arc_count += 1
-        
         gcode_list = []
-        gcode_list.append(";_gcm.arc_begin[{}]".format(self.line))
-        
-        # make every other arc different color
-        col = self.colors[self.current_motion_mode]
-        fac = 1 if self._arc_count % 2 == 0 else 0.5
-        col = tuple(c * fac for c in col)
-        gcode_list.append(";_gcm.color_begin[{:.2f},{:.2f},{:.2f}]".format(*col))
+        gcode_list.append(";" + self.special_comment_prefix + ".arc_begin[{}]".format(self.line))
         
         do_restore_distance_mode = False
         if self.current_distance_mode == "G91":
@@ -799,18 +781,14 @@ class GcodeMachine:
         if do_restore_distance_mode == True:
           gcode_list.append(self.current_distance_mode)
         
-        gcode_list.append(";_gcm.color_end")
-        gcode_list.append(";_gcm.arc_end")
+        gcode_list.append(";" + self.special_comment_prefix + ".arc_end")
         
         return gcode_list
     
         
     def _fractionize_linear_motion(self):
         gcode_list = []
-        gcode_list.append(";_gcm.line_begin:'{}'".format(self.line))
-        
-        col = self.colors[self.current_motion_mode]
-        gcode_list.append(";_gcm.color_begin[{:.2f},{:.2f},{:.2f}]".format(col[0], col[1], col[2]))
+        gcode_list.append(";" + self.special_comment_prefix + ".line_begin[{}]".format(self.line))
         
         num_fractions = int(self.dist / self.fract_linear_segment_len)
         
@@ -843,8 +821,7 @@ class GcodeMachine:
             
             gcode_list.append(txt)
         
-        gcode_list.append(";_gcm.color_end")
-        gcode_list.append(";_gcm.line_end")
+        gcode_list.append(";" + self.special_comment_prefix + ".line_end")
         return gcode_list
 
         
