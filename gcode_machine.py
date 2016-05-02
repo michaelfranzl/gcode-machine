@@ -290,6 +290,7 @@ class GcodeMachine:
         self.vars = {}
         self.current_feed = None
         self.current_motion_mode = 0
+        self.current_distance_mode = "G90"
         self.callback("on_feed_change", self.current_feed)
         
     @property
