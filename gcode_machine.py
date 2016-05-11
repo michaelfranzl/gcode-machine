@@ -549,9 +549,7 @@ class GcodeMachine:
     def scale_spindle(self):
         if self.contains_spindle:
             # strip the original S setting
-            self.logger.info("STRIPPING SPINDLE: " + self.line)
             self.line = re.sub(self._re_spindle_replace, "", self.line).strip()
-            
             self.line += "S{:d}".format(int(self.current_spindle_speed * self.spindle_factor))
                 
         
