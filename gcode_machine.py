@@ -86,6 +86,10 @@ class GcodeMachine:
         # The length of the segments of fractionized lines.
         self.fract_linear_segment_len = 0.5
         
+        ## @var spindle_factor
+        # Scale S by this value
+        self.spindle_factor = 1
+        
         ## @var request_feed
         # If `do_feed_override` is True, a F command will be inserted
         # to the currently active command with this value.
@@ -192,13 +196,16 @@ class GcodeMachine:
             self._offset_regexps.append(re.compile(".*" + word + "([-.\d]+)"))
             
         self._re_radius = re.compile(".*R([-.\d]+)")
-        self._re_spindle = re.compile(".*S([\d]+)")
         
         self._re_use_var = re.compile("#(\d*)")
         self._re_set_var = re.compile("^\s*#(\d+)=([\d.-]+)")
         
         self._re_feed = re.compile(".*F([.\d]+)")
         self._re_feed_replace = re.compile(r"F[.\d]+")
+        
+        self._re_spindle = re.compile(".*S([\d]+)")
+        self._re_spindle_replace = re.compile(r"S[.\d]+")
+        
         self._re_motion_mode = re.compile("G([0123])*([^\\d]|$)")
         self._re_distance_mode = re.compile("(G9[01])([^\d]|$)")
         self._re_plane_mode = re.compile("(G1[789])([^\d]|$)")
@@ -538,6 +545,15 @@ class GcodeMachine:
                 self.line = self.line.replace("#" + key, str(val))
                 self.logger.info("SUBSTITUED VAR #{} -> {}".format(key, val))
     
+    
+    def scale_spindle(self):
+        if self.contains_spindle:
+            # strip the original S setting
+            self.logger.info("STRIPPING SPINDLE: " + self.line)
+            self.line = re.sub(self._re_spindle_replace, "", self.line).strip()
+            
+            self.line += "S{:d}".format(int(self.current_spindle_speed * self.spindle_factor))
+                
         
     def override_feed(self):
         """
