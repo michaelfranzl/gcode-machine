@@ -349,7 +349,7 @@ class GcodeMachine:
         """
         Remove blank spaces and newlines from beginning and end, and remove blank spaces from the middle of the line.
         """
-        #self.line = self.line.replace(" ", "")
+        self.line = self.line.replace(" ", "")
         self.line = self.line.strip()
         
         
