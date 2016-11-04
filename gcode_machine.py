@@ -71,12 +71,12 @@ class GcodeMachine:
         # `fract_linear_threshold` will be broken down into small line
         # segments of length `fract_linear_segment_len`. If set to False
         # no processing is done on lines.
-        self.do_fractionize_lines = True
+        self.do_fractionize_lines = False
         
         ## @var do_fractionize_arcs
         # If set to True, arcs will be broken up into small line segments.
         # If set to False, no processing is done on arcs.
-        self.do_fractionize_arcs = True
+        self.do_fractionize_arcs = False
         
         ## @var fract_linear_threshold
         # The threshold for the fractionization of lines.
