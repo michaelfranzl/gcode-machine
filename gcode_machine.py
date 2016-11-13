@@ -788,8 +788,8 @@ class GcodeMachine:
            
         if segments <= 1:
             # no segments were rendered (very small arc) so we have to put S and F here
-            if self.contains_feed: txt += "F{:.1f}".format(self.feed_in_current_line)
-            if self.contains_spindle: txt += "S{:d}".format(self.current_spindle_speed)
+            if self.contains_feed: gcodeline += "F{:.1f}".format(self.feed_in_current_line)
+            if self.contains_spindle: gcodeline += "S{:d}".format(self.current_spindle_speed)
                 
         gcode_list.append(gcodeline)
         
