@@ -46,7 +46,7 @@ class GcodeMachine:
         """ Initialization.
         """
         
-        self.logger = logging.getLogger('gcode_machine')
+        self.logger = logging.getLogger('gerbil')
         
         
         ## @var line
@@ -569,19 +569,17 @@ class GcodeMachine:
             
             
         if self.do_feed_override == True and self.request_feed:
+           
             if self.contains_feed:
                 # strip the original F setting
                 self.logger.info("STRIPPING FEED: " + self.line)
                 self.line = re.sub(self._re_feed_replace, "", self.line).strip()
 
-            if (self.current_motion_mode
-                and self.current_motion_mode >= 1
-                and self.current_motion_mode <= 3
-                and self.current_feed != self.request_feed):
-                    self.line += "F{:0.1f}".format(self.request_feed)
-                    self.current_feed = self.request_feed
-                    self.logger.info("OVERRIDING FEED: " + str(self.current_feed))
-                    self.callback("on_feed_change", self.current_feed)
+            if (self.current_feed != self.request_feed):
+                self.line += "F{:0.1f}".format(self.request_feed)
+                self.current_feed = self.request_feed
+                self.logger.info("OVERRIDING FEED: " + str(self.current_feed))
+                self.callback("on_feed_change", self.current_feed)
 
         
 
