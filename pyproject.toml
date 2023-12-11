@@ -1,0 +1,13 @@
+[project]
+name = "gcode_machine"
+version = "0.0.1"
+description = "A simple CNC state machine implemented in Python that can be used for simulation and processing of G-code"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy"
+]
+license = {file = "LICENSE"}
+
+[tool.setuptools]
+packages = ["gcode_machine"]
