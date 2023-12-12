@@ -141,7 +141,7 @@ class GcodeMachine:
 
         ## @var target_m
         # Contains the position target of the currently set command in
-        # the currently seleted coordinate system.
+        # the currently selected coordinate system.
         self.target_w = [None, None, None]
 
         ## @var offset
@@ -223,11 +223,11 @@ class GcodeMachine:
             "G": [
                 # non-modal commands
                 4,  # Dwell
-                10, # set coordintate system
+                10, # set coordinate system
                 28, # Go to predefined position
                 30, # Go to predefined position
                 53, # move in machine coordinates
-                92, # set coordintate system offset
+                92, # set coordinate system offset
 
                 # motion modes
                 0, # fast linear
@@ -246,7 +246,7 @@ class GcodeMachine:
                 21, # mm
 
                 # distance modes
-                90, # absulute
+                90, # absolute
                 91, # incremental
 
                 # plane select
@@ -541,7 +541,7 @@ class GcodeMachine:
                 return self.line
             else:
                 self.line = self.line.replace("#" + key, str(val))
-                self.logger.info("SUBSTITUED VAR #{} -> {}".format(key, val))
+                self.logger.info("SUBSTITUTED VAR #{} -> {}".format(key, val))
 
 
     def scale_spindle(self):
