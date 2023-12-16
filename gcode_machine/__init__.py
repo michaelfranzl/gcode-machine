@@ -21,7 +21,6 @@ along with pyglpainter. If not, see <https://www.gnu.org/licenses/>.
 import re
 import logging
 import math
-import numpy as np
 
 
 class GcodeMachine:
@@ -132,8 +131,11 @@ class GcodeMachine:
         ## @var pos_w
         # Contains the current working position before execution
         # of the currently set line (the target of the last command)
-        self.pos_w = list(np.subtract(self.pos_m, self.cs_offsets[self.cs]))
-
+        self.pos_w = [
+            self.pos_m[0] - self.cs_offsets[self.cs][0],
+            self.pos_m[1] - self.cs_offsets[self.cs][1],
+            self.pos_m[2] - self.cs_offsets[self.cs][2]
+        ]
 
         ## @var target_m
         # Contains the position target of the currently set command in
@@ -305,7 +307,12 @@ class GcodeMachine:
     @position_m.setter
     def position_m(self, pos):
         self.pos_m = list(pos)
-        self.pos_w = list(np.subtract(self.pos_m, self.cs_offsets[self.cs]))
+        offset = self.cs_offsets[self.cs]
+        self.pos_w = [
+            self.pos_m[0] - offset[0],
+            self.pos_m[1] - offset[1],
+            self.pos_m[2] - offset[2]
+        ]
 
     @property
     def current_cs(self):
@@ -314,7 +321,12 @@ class GcodeMachine:
     @current_cs.setter
     def current_cs(self, label):
         self.cs = label
-        self.pos_w = list(np.subtract(self.pos_m, self.cs_offsets[self.cs]))
+        offset = self.cs_offsets[self.cs]
+        self.pos_w = [
+            self.pos_m[0] - offset[0],
+            self.pos_m[1] - offset[1],
+            self.pos_m[2] - offset[2]
+        ]
 
     def set_line(self, line):
         """
