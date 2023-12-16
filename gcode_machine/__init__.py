@@ -140,7 +140,7 @@ class GcodeMachine:
         # the machine coordinate system.
         self.target_m = [None, None, None]
 
-        ## @var target_m
+        ## @var target_w
         # Contains the position target of the currently set command in
         # the currently selected coordinate system.
         self.target_w = [None, None, None]
@@ -560,7 +560,7 @@ class GcodeMachine:
         """
 
         if self.do_feed_override == False and self.contains_feed:
-            # Notify parent app of detected feed in current line (useful for UIs)
+            # Notify caller of detected feed in current line (useful for UIs)
             if self.current_feed != self.feed_in_current_line:
                 self.callback("on_feed_change", self.feed_in_current_line)
             self.current_feed = self.feed_in_current_line
