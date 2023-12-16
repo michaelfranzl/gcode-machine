@@ -46,89 +46,87 @@ class GcodeMachine:
 
         self.logger = logging.getLogger('gerbil')
 
-
-        ## @var line
+        # @var line
         # Holds the current Gcode line
         self.line = ""
 
-        ## @var vars
+        # @var vars
         # A dict holding values for variable substitution.
         self.vars = {}
 
-        ## @var callback method for parent applications
+        # @var callback method for parent applications
         self.callback = self._default_callback
 
-        ## @var do_feed_override
+        # @var do_feed_override
         # If set to True, F commands will be replaced with the feed
         # speed set in `request_feed`. If set to False, no feed speed
         # processing will be done.
         self.do_feed_override = False
 
-        ## @var do_fractionize_lines
+        # @var do_fractionize_lines
         # If set to True, linear movements over the threshold of
         # `fract_linear_threshold` will be broken down into small line
         # segments of length `fract_linear_segment_len`. If set to False
         # no processing is done on lines.
         self.do_fractionize_lines = False
 
-        ## @var do_fractionize_arcs
+        # @var do_fractionize_arcs
         # If set to True, arcs will be broken up into small line segments.
         # If set to False, no processing is done on arcs.
         self.do_fractionize_arcs = False
 
-        ## @var fract_linear_threshold
+        # @var fract_linear_threshold
         # The threshold for the fractionization of lines.
         self.fract_linear_threshold = 1
 
-        ## @var fract_linear_segment_len
+        # @var fract_linear_segment_len
         # The length of the segments of fractionized lines.
         self.fract_linear_segment_len = 0.5
 
-        ## @var spindle_factor
+        # @var spindle_factor
         # Scale S by this value
         self.spindle_factor = 1
 
-        ## @var request_feed
+        # @var request_feed
         # If `do_feed_override` is True, a F command will be inserted
         # to the currently active command with this value.
         self.request_feed = None
 
-        ## @var current_feed
+        # @var current_feed
         # The current feed rate of the machine
         self.current_feed = None
 
-        ## @var contains_feed
+        # @var contains_feed
         # True if the current line contains a F command
         self.contains_feed = False
 
-        ## @var current_distance_mode
+        # @var current_distance_mode
         # Contains the current distance mode of the machine as string
         self.current_distance_mode = "G90"
 
-        ## @var current_motion_mode
+        # @var current_motion_mode
         # Contains the current motion mode of the machine as integer (0 to 3)
         self.current_motion_mode = 0
 
-        ## @var current_plane_mode
+        # @var current_plane_mode
         # Contains the current plane mode of the machine as string
         self.current_plane_mode = "G17"
 
-
-        ## @var cs_offsets
+        # @var cs_offsets
         # Coordinate system offsets. A Python dict with
         # 3-tuples as offsets.
         self.cs_offsets = cs_offsets
 
-        ## @var cs
+        # @var cs
         # Current coordinate system as string.
         self.cs = ics
 
-        ## @var pos_m
+        # @var pos_m
         # Contains the current machine position before execution
         # of the currently set line (the target of the last command)
         self.pos_m = list(impos)  # initial machine position
 
-        ## @var pos_w
+        # @var pos_w
         # Contains the current working position before execution
         # of the currently set line (the target of the last command)
         self.pos_w = [
@@ -137,45 +135,45 @@ class GcodeMachine:
             self.pos_m[2] - self.cs_offsets[self.cs][2]
         ]
 
-        ## @var target_m
+        # @var target_m
         # Contains the position target of the currently set command in
         # the machine coordinate system.
         self.target_m = [None, None, None]
 
-        ## @var target_w
+        # @var target_w
         # Contains the position target of the currently set command in
         # the currently selected coordinate system.
         self.target_w = [None, None, None]
 
-        ## @var offset
+        # @var offset
         # Contains the offset of the arc center from current position
         self.offset = [0, 0, 0]
 
-        ## @var radius
+        # @var radius
         # Contains the radius of the current arc
         self.radius = None
 
-        ## @var contains_radius
+        # @var contains_radius
         # True if the current line contains a R word
         self.contains_radius = False
 
-        ## @var current_spindle_speed
+        # @var current_spindle_speed
         # Contains the current spindle speed (S word)
         self.current_spindle_speed = None
 
-        ## @var contains_spindle
+        # @var contains_spindle
         # True if the current line contains the S word
         self.contains_spindle = False
 
-        ## @var dist
+        # @var dist
         # Distance that current line will travel
         self.dist = 0
 
-        ## @var dists
+        # @var dists
         # Distance that current line will travel, in [x,y,z] directions
         self.dist_xyz = [0, 0, 0]
 
-        ## @var line_is_unsupported_cmd
+        # @var line_is_unsupported_cmd
         # True if current line is not in the whitelist
         self.line_is_unsupported_cmd = False
 
@@ -219,8 +217,7 @@ class GcodeMachine:
         self._re_match_cmd_number = re.compile("([GMT])(\d+)")
         self._re_expand_multicommands = re.compile("([GMT])")
 
-
-        ## @var whitelist_commands
+        # @var whitelist_commands
         # Strip line from everything that is not in this list
         self.whitelist_commands = {
             "G": [
@@ -347,7 +344,8 @@ class GcodeMachine:
         commands and returns a list of commands. Machine state is not
         changed.
         """
-        commands = re.sub(self._re_expand_multicommands, "\n\g<0>", self.line).strip()
+        commands = re.sub(self._re_expand_multicommands,
+                          "\n\g<0>", self.line).strip()
         lines = commands.split("\n")
         lines[0] = lines[0] + self.comment  # preserve comment
         return lines
@@ -368,10 +366,12 @@ class GcodeMachine:
         def format_cmd_number(matchobj):
             cmd = matchobj.group(1)
             cmd_nr = int(matchobj.group(2))
-            self.line_is_unsupported_cmd = not (cmd in self.whitelist_commands and cmd_nr in self.whitelist_commands[cmd])
+            self.line_is_unsupported_cmd = not (
+                cmd in self.whitelist_commands and cmd_nr in self.whitelist_commands[cmd])
             return "{}{:02d}".format(cmd, cmd_nr)
 
-        self.line = re.sub(self._re_match_cmd_number, format_cmd_number, self.line)
+        self.line = re.sub(self._re_match_cmd_number,
+                           format_cmd_number, self.line)
 
         if self.line_is_unsupported_cmd:
             self.line = ";" + self.line + " ;" + self.special_comment_prefix + ".unsupported"
@@ -449,7 +449,8 @@ class GcodeMachine:
             if m:
                 if self.current_distance_mode == "G90":
                     # absolute distances
-                    self.target_m[i] = self.cs_offsets[self.cs][i] + float(m.group(1))
+                    self.target_m[i] = self.cs_offsets[self.cs][i] + \
+                        float(m.group(1))
                     self.target_w[i] = float(m.group(1))
 
                     # calculate distance
@@ -465,10 +466,8 @@ class GcodeMachine:
                 self.target_w[i] = self.pos_w[i]
 
         # calculate travelling distance
-        self.dist = math.sqrt(self.dist_xyz[0] * self.dist_xyz[0] + self.dist_xyz[1] * self.dist_xyz[1] + self.dist_xyz[2] * self.dist_xyz[2])
-
-
-
+        self.dist = math.sqrt(self.dist_xyz[0] * self.dist_xyz[0] + self.dist_xyz[1]
+                              * self.dist_xyz[1] + self.dist_xyz[2] * self.dist_xyz[2])
 
     def fractionize(self):
         """
@@ -555,13 +554,12 @@ class GcodeMachine:
                 self.line = self.line.replace("#" + key, str(val))
                 self.logger.info("SUBSTITUTED VAR #{} -> {}".format(key, val))
 
-
     def scale_spindle(self):
         if self.contains_spindle:
             # strip the original S setting
             self.line = re.sub(self._re_spindle_replace, "", self.line).strip()
-            self.line += "S{:d}".format(int(self.current_spindle_speed * self.spindle_factor))
-
+            self.line += "S{:d}".format(
+                int(self.current_spindle_speed * self.spindle_factor))
 
     def override_feed(self):
         """
@@ -577,13 +575,13 @@ class GcodeMachine:
                 self.callback("on_feed_change", self.feed_in_current_line)
             self.current_feed = self.feed_in_current_line
 
-
         if self.do_feed_override == True and self.request_feed:
 
             if self.contains_feed:
                 # strip the original F setting
                 self.logger.info("STRIPPING FEED: " + self.line)
-                self.line = re.sub(self._re_feed_replace, "", self.line).strip()
+                self.line = re.sub(self._re_feed_replace,
+                                   "", self.line).strip()
 
             if (self.current_feed != self.request_feed):
                 self.line += "F{:0.1f}".format(self.request_feed)
@@ -598,7 +596,8 @@ class GcodeMachine:
         """
 
         # transform () comment at end of line into semicolon comment
-        self.line = re.sub(self._re_comment_paren_convert, "\g<1>;\g<2>", self.line)
+        self.line = re.sub(self._re_comment_paren_convert,
+                           "\g<1>;\g<2>", self.line)
 
         # remove all in-line () comments
         self.line = re.sub(self._re_comment_paren_replace, "", self.line)
@@ -644,24 +643,26 @@ class GcodeMachine:
             # R given, no IJK given, self.offset must be calculated
 
             if tuple(self.target_w) == tuple(self.pos_w):
-                self.logger.error("Arc in Radius Mode: Identical start/end {}".format(self.line))
+                self.logger.error(
+                    "Arc in Radius Mode: Identical start/end {}".format(self.line))
                 return [self.line]
 
-            h_x2_div_d = 4.0 * self.radius * self.radius - x * x - y * y;
+            h_x2_div_d = 4.0 * self.radius * self.radius - x * x - y * y
 
             if h_x2_div_d < 0:
-                self.logger.error("Arc in Radius Mode: Radius error {}".format(self.line))
+                self.logger.error(
+                    "Arc in Radius Mode: Radius error {}".format(self.line))
                 return [self.line]
 
             # Finish computing h_x2_div_d.
-            h_x2_div_d = -math.sqrt(h_x2_div_d) / math.sqrt(x * x + y * y);
+            h_x2_div_d = -math.sqrt(h_x2_div_d) / math.sqrt(x * x + y * y)
 
             if not is_clockwise_arc:
                 h_x2_div_d = -h_x2_div_d
 
             if self.radius < 0:
-                h_x2_div_d = -h_x2_div_d;
-                self.radius = -self.radius;
+                h_x2_div_d = -h_x2_div_d
+                self.radius = -self.radius
 
             self.offset[axis_0] = 0.5*(x-(y*h_x2_div_d))
             self.offset[axis_1] = 0.5*(y+(x*h_x2_div_d))
@@ -670,9 +671,10 @@ class GcodeMachine:
             # CENTER OFFSET MODE, no R given so must be calculated
 
             if self.offset[axis_0] == None or self.offset[axis_1] == None:
-                raise Exception("Arc in Offset Mode: No offsets in plane. {}".format(self.line))
-                #self.logger.error("Arc in Offset Mode: No offsets in plane")
-                #return [self.line]
+                raise Exception(
+                    "Arc in Offset Mode: No offsets in plane. {}".format(self.line))
+                # self.logger.error("Arc in Offset Mode: No offsets in plane")
+                # return [self.line]
 
             # Arc radius from center to target
             x -= self.offset[axis_0]
@@ -680,25 +682,29 @@ class GcodeMachine:
             target_r = math.sqrt(x * x + y * y)
 
             # Compute arc radius for mc_arc. Defined from current location to center.
-            self.radius = math.sqrt(self.offset[axis_0] * self.offset[axis_0] + self.offset[axis_1] * self.offset[axis_1])
+            self.radius = math.sqrt(
+                self.offset[axis_0] * self.offset[axis_0] + self.offset[axis_1] * self.offset[axis_1])
 
             # Compute difference between current location and target radii for final error-checks.
-            delta_r = math.fabs(target_r - self.radius);
+            delta_r = math.fabs(target_r - self.radius)
             if delta_r > 0.005:
                 if delta_r > 0.5:
-                    raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
-                    #self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
-                    #return []
+                    raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(
+                        self.radius, delta_r, self.line))
+                    # self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    # return []
                 if delta_r > (0.001 * self.radius):
-                    raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
-                    #self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
-                    #return []
+                    raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(
+                        self.radius, delta_r, self.line))
+                    # self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
+                    # return []
 
         # print(self.pos_m, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
 
         # print("MCARC", self.line, self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
 
-        gcode_list = self._mc_arc(self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
+        gcode_list = self._mc_arc(self.pos_w, self.target_w, self.offset,
+                                  self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
 
         return gcode_list
 
@@ -710,7 +716,8 @@ class GcodeMachine:
         """
 
         gcode_list = []
-        gcode_list.append(";" + self.special_comment_prefix + ".arc_begin[{}]".format(self.line))
+        gcode_list.append(";" + self.special_comment_prefix +
+                          ".arc_begin[{}]".format(self.line))
 
         do_restore_distance_mode = False
         if self.current_distance_mode == "G91":
@@ -728,7 +735,8 @@ class GcodeMachine:
         rt_axis0 = target[axis_0] - center_axis0
         rt_axis1 = target[axis_1] - center_axis1
 
-        angular_travel = math.atan2(r_axis0 * rt_axis1 - r_axis1 * rt_axis0, r_axis0 * rt_axis0 + r_axis1 * rt_axis1)
+        angular_travel = math.atan2(
+            r_axis0 * rt_axis1 - r_axis1 * rt_axis0, r_axis0 * rt_axis0 + r_axis1 * rt_axis1)
 
         arc_tolerance = 0.004
         arc_angular_travel_epsilon = 0.0000005
@@ -740,27 +748,27 @@ class GcodeMachine:
             if angular_travel <= arc_angular_travel_epsilon:
                 angular_travel += 2*math.pi
 
+        segments = math.floor(math.fabs(0.5 * angular_travel * radius) /
+                              math.sqrt(arc_tolerance * (2 * radius - arc_tolerance)))
 
-
-        segments = math.floor(math.fabs(0.5 * angular_travel * radius) / math.sqrt(arc_tolerance * (2 * radius - arc_tolerance)))
-
-        #print("angular_travel:{:f}, radius:{:f}, arc_tolerance:{:f}, segments:{:d}".format(angular_travel, radius, arc_tolerance, segments))
+        # print("angular_travel:{:f}, radius:{:f}, arc_tolerance:{:f}, segments:{:d}".format(angular_travel, radius, arc_tolerance, segments))
 
         words = ["X", "Y", "Z"]
         if segments:
             theta_per_segment = angular_travel / segments
-            linear_per_segment = (target[axis_linear] - position[axis_linear]) / segments
+            linear_per_segment = (
+                target[axis_linear] - position[axis_linear]) / segments
 
             position_last = list(position)
             for i in range(1, segments):
-                cos_Ti = math.cos(i * theta_per_segment);
-                sin_Ti = math.sin(i * theta_per_segment);
-                r_axis0 = -offset[axis_0] * cos_Ti + offset[axis_1] * sin_Ti;
-                r_axis1 = -offset[axis_0] * sin_Ti - offset[axis_1] * cos_Ti;
+                cos_Ti = math.cos(i * theta_per_segment)
+                sin_Ti = math.sin(i * theta_per_segment)
+                r_axis0 = -offset[axis_0] * cos_Ti + offset[axis_1] * sin_Ti
+                r_axis1 = -offset[axis_0] * sin_Ti - offset[axis_1] * cos_Ti
 
-                position[axis_0] = center_axis0 + r_axis0;
-                position[axis_1] = center_axis1 + r_axis1;
-                position[axis_linear] += linear_per_segment;
+                position[axis_0] = center_axis0 + r_axis0
+                position[axis_1] = center_axis1 + r_axis1
+                position[axis_linear] += linear_per_segment
 
                 gcodeline = ""
                 if i == 1:
@@ -774,8 +782,11 @@ class GcodeMachine:
                         position_last[a] = position[a]
 
                 if i == 1:
-                    if self.contains_feed: gcodeline += "F{:.1f}".format(self.feed_in_current_line)
-                    if self.contains_spindle: gcodeline += "S{:d}".format(self.current_spindle_speed)
+                    if self.contains_feed:
+                        gcodeline += "F{:.1f}".format(
+                            self.feed_in_current_line)
+                    if self.contains_spindle:
+                        gcodeline += "S{:d}".format(self.current_spindle_speed)
 
                 gcode_list.append(gcodeline)
 
