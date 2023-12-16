@@ -327,7 +327,7 @@ class GcodeMachine:
 
     def set_line(self, line):
         """
-        Load a Gcode line into the machine. It will be available in `self.line`.
+        Load a Gcode line into the machine. It will be available in `self.line`
 
         @param line
         A string of Gcode.
@@ -352,7 +352,8 @@ class GcodeMachine:
 
     def strip(self):
         """
-        Remove blank spaces and newlines from beginning and end, and remove blank spaces from the middle of the line.
+        Remove blank spaces and newlines from beginning and end,
+        and remove blank spaces from the middle of the line.
         """
         self.line = self.line.replace(" ", "")
         self.line = self.line.strip()
