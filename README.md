@@ -3,77 +3,114 @@
 ![Unit tests on master branch](https://github.com/michaelfranzl/gcode_machine/actions/workflows/test.yml/badge.svg?branch=master)
 
 Python3 module containing a class that emulates a simple CNC state machine
-that can be used for simulation and processing of G-code.
+that can be used for pre-processing and for realtime streaming of G-code to CNC controllers.
 
-After setting initial machine conditions (position, feed, etc.)
-you can send Gcode lines to it. Sent Gcode lines change the state
-of the machine, most importantly:
+I split it off my project [gerbil](https://github.com/michaelfranzl/gerbil) to make it generally usable.
 
-* machine position
-* coordinate system position
-* feed rate
-* travel distances
-* spindle speed
-* motion mode
-* distance mode
-* plane mode
-* etc.
-
-In addition, by calling corresponding methods, the machine also can
-transform the Gcode, e.g. for
-
-* variable substitution
-* feed override
-* cleanup (comments, spaces, whitelisted commands)
-* fractionizing of lines and arcs down into small linear fragments
+This machine is completely unit tested
+and was also successfully tested by realtime processing G-code for my wood-milling CNC machine.
 
 
-Typical use:
+## Features
+
+After passing initial conditions (machine position, coordinate system offsets, current coordinate
+system) to the constructor, you can send G-code lines to the machine. Sent G-code lines change the state
+of the machine:
+
+* machine position, absolute to the machine (`position_m`)
+* working position, relative to current coordinate system (`position_w`)
+* coordinate system (`current_cs`)
+* feed rate (`current_feed`)
+* travel distances (the list `dist_xyz`, the scalar `dist`)
+* spindle speed (`current_spindle_speed`)
+* motion mode (`current_motion_mode`)
+* distance mode (`current_distance_mode`)
+* plane mode (`current_plane_mode`)
+* comment (`comment`)
+
+To change the current coordinate system, use the accessor `current_cs=`
+(as this also recalculates the working position `pos_w`).
+
+Optionally, the physical machine position can at any time be updated from the state of a real CNC controller;
+for this, the accessor `position_m=` should be used (as this recalculates the working position `pos_w`).
+
+In addition, by calling corresponding methods, the machine also can *pre-process* the set G-code line:
+
+* variable substitution (`#1`, `#2`, etc. using the `vars` dict attribute)
+* spindle scaling (`scale_spindle()` using the `spindle_factor` attribute)
+* feed override (`override_feed()` using the `request_feed` attribute)
+* tidying (`tidy()`) (comments, change comment format from parentheses to semicolon, spaces, command allow-list)
+
+The methods `split_lines` and `fractionize` are pure pre-processing methods that do not modify the
+state of the machine, but return a list of G-code. In a future release, these methods may be moved
+to class methods, or into a separate class:
+
+* `fractionize()` splits linear (G1) and arc (G2, G3) motions into tiny linear G1 motions
+* `split_lines()` splits several space-separated commands into a list of separate commands
+
+Callers can assign a custom callback function to the attribute `callback`, which will be called when
+certain processing events happen. Currently, the only evens are:
+
+* `on_feed_change`: When the G-Code line changes the feed speed. The first argument is the feed speed as a floating point number.
+* `on_var_undefined`: When the processor encounters a variable that was not defined before. The
+    first argument is the name of the undefined variable.
+
+Last but not least, the attribute `logger` has a logger created by `logging.getLogger('gcode_machine')`
+that can be used by the application.
+
+
+
+## Installation
+
+```sh
+python -m pip install gcode-machine
+```
+
+## Usage
 
 ```python
 from gcode_machine import GcodeMachine
 
 # initial conditions
-initial_machine_position = impos = (0,0,0)
-initial_coordinate_system = ics = "G54"
-coordinate_system_offsets = cs_offsets = {"G54":(0,0,0)}
+impos = (0, 0, 0) # initial machine position, default zero
+ics = "G54" # initial coordinate system , default G54
+cs_offsets = {"G54": (0, 0, 0), "G55": (10, 20, 30)} # coordinate system offsets
 
 # make a new machine
 gcm = GcodeMachine(impos, ics, cs_offsets)
-
 input = ["G0 Z-10", "G1 X10 Y10"]
 output = []
 
 for line in input:
     gcm.set_line(line)       # feed the line into the machine
+
     gcm.strip()              # clean up whitespace
     gcm.tidy()               # filter commands by a whitelist
     gcm.find_vars()          # parse variable usages
     gcm.substitute_vars()    # substitute variables
-    gcm.parse_state()        # parse positions etc. and update the machine state
-    gcm.override_feed()      # substitute F values
-    gcm.transform_comments() # transform parentheses to semicolon comments
+    gcm.parse_state()        # parse the line and update the machine state
+    gcm.override_feed()      # substitute F values in the current line
+
+    # When done processing:
     output.append(gcm.line)  # read the processed line back from the machine
     gcm.done()               # update the machine position
 ```
 
+Explanation of this example:
+
 For each iteration of the loop, feed the command line
-into the machine with the method `set_line`. Then, call processing
-methods as needed for your application (see source code for all methods).
+into the machine with the method `set_line()`. Then, call individual processing
+methods as needed for your application; this gives a lot of flexibility to the application.
 
-Also, you can inspect the machine state as needed.
-When done with one line, call `done` -- this will update the virtual tool position.
-
-Processing can happen as fast as possible, or asynchronously in a realtime manner.
-
-This machine is experimental and subject to further extensions. It works well for simple cases, though.
-
-I believe the class is well documented. Also, code is documentation.
+When done with one line, call `done()` -- this will update the virtual tool position.
 
 
-## Examples
+## Processing examples
 
-Linear fractionization of arcs:
+Please also see the unit tests for the full feature set.
+
+
+### Linear fractionization of arcs
 
 ```python
 gcm.position_m = (0,0,0)
@@ -90,7 +127,7 @@ Result:
 G1X-0.33Y0.353Z0
 X-0.634Y0.727
 X-0.913Y1.122
-{ snip }
+...
 X8.037Y11.386
 X8.466Y11.164
 X8.878Y10.913
@@ -101,7 +138,7 @@ X10Y10
 ;_gcm.arc_end
 ```
 
-Comment transform:
+### Comment transform
 
 ```python
 gcm.set_line("G0 X0 (bob) Y0 (alice)")
@@ -116,7 +153,7 @@ G0 X0  Y0 ;alice
 ```
 
 
-Strip unsupported commands (whitelist based):
+### Tidying and allow-listing
 
 ```python
 gcm.set_line("T2")
@@ -131,7 +168,7 @@ Result:
 ```
 
 
-Split commands (some Gcode generators do this stupid thing):
+### Splitting commands
 
 ```python
 gcm.set_line("G55 M3 T2")
