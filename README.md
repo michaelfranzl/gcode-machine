@@ -1,5 +1,7 @@
 # GcodeMachine
 
+![Unit tests on master branch](https://github.com/michaelfranzl/gcode_machine/actions/workflows/test.yml/badge.svg?branch=master)
+
 Python3 module containing a class that emulates a simple CNC state machine
 that can be used for simulation and processing of G-code.
 
