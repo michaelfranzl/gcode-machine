@@ -16,6 +16,36 @@ class GcodeMachineTest(unittest.TestCase):
         self.gcm = GcodeMachine(impos, ics, cs_offsets)
         self.gcm.cs_offsets['G55'] = (10, 20, 30)
 
+    def test_typical_usage(self):
+        impos = (1, 2, 3)
+        ics = "G55"
+        cs_offsets = {"G54": (0, 0, 0), "G55": (10, 20, 30)}
+
+        # make a new machine
+        gcm = GcodeMachine(impos, ics, cs_offsets)
+        input = ["G0 Z-10", "G1 X10 Y10"]
+        output = []
+
+        for line in input:
+            gcm.set_line(line)
+
+            gcm.strip()
+            gcm.tidy()
+            gcm.find_vars()
+            gcm.substitute_vars()
+            gcm.parse_state()
+            gcm.override_feed()
+            gcm.transform_comments()
+
+            output.append(gcm.line)
+            gcm.done()
+
+        self.assertEqual(output[0], 'G00Z-10')
+        self.assertEqual(output[1], 'G01X10Y10')
+        self.assertEqual(gcm.pos_m, [20, 30, 20])
+        self.assertEqual(gcm.pos_w, [10, 10, -10])
+
+
     def test_default_current_distance_mode(self):
         self.assertEqual(self.gcm.current_distance_mode, 'G90')
 
@@ -62,6 +92,8 @@ class GcodeMachineTest(unittest.TestCase):
         self.gcm.current_cs = 'G55'
         self.assertEqual(self.gcm.pos_w, [-10, -20, -30])
         self.assertEqual(self.gcm.cs, 'G55')
+        self.gcm.current_cs = 'G54'
+        self.assertEqual(self.gcm.pos_w, [0, 0, 0])
 
     def test_set_line(self):
         self.gcm.set_line('G0 X0 (comment)')
