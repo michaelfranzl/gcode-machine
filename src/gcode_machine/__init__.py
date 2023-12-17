@@ -546,8 +546,6 @@ class GcodeMachine:
         # re-add comment
         self.line += self.comment
 
-        # print("DONE", self.line, self.pos_m, self.pos_w, self.target)
-
     def find_vars(self):
         """
         Parses all variables in a G-Code line (#1, #2, etc.) and populates
@@ -621,6 +619,7 @@ class GcodeMachine:
                 self.logger.info("overriding feed " + str(self.current_feed))
                 self.callback("on_feed_change", self.current_feed)
 
+    # TODO: This method can be made 'private' as it is called from `set_line()`
     def transform_comments(self):
         """
         Comments in Gcode can be set with semicolon or parentheses.
