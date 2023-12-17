@@ -48,6 +48,18 @@ class GcodeMachine:
             cs_offsets={"G54": (0, 0, 0)}
             ):
         """ Initialization.
+
+        Parameters
+        ----------
+
+        impos : 3-tuple
+            Initial machine position
+
+        ics : str
+            Initial coordinate system. Default: 'G54'
+
+        cs_offsets : dict
+            Default: {"G54": (0, 0, 0)}
         """
 
         self.logger = logging.getLogger('gerbil')
@@ -335,8 +347,11 @@ class GcodeMachine:
         """
         Load a Gcode line into the machine. It will be available in `self.line`
 
-        @param line
-        A string of Gcode.
+        Parameters
+        ----------
+
+        line : str
+            A single G-Code line
         """
         self.line = line
         self.transform_comments()
