@@ -33,14 +33,20 @@ class GcodeMachine:
 
     on_feed_change
     : Emitted when a F keyword is parsed from the G-Code.
-    : 1 argument: the feed rate in mm/min
+    : One argument: the feed rate in mm/min
 
     on_var_undefined
-    : Emitted when a variable is to be substituted but no substitution value has been set previously.
-    : 1 argument: the key of the undefined variable
+    : Emitted when a variable is to be substituted
+    : but no substitution value has been set previously.
+    : One argument: the key of the undefined variable
     """
 
-    def __init__(self, impos=(0, 0, 0), ics="G54", cs_offsets={"G54": (0, 0, 0)}):
+    def __init__(
+            self,
+            impos=(0, 0, 0),
+            ics="G54",
+            cs_offsets={"G54": (0, 0, 0)}
+            ):
         """ Initialization.
         """
 
@@ -55,7 +61,7 @@ class GcodeMachine:
         self.vars = {}
 
         # @var callback method for parent applications
-        self.callback = self._default_callback
+        self.callback = self.__default_callback
 
         # @var do_feed_override
         # If set to True, F commands will be replaced with the feed
@@ -186,36 +192,36 @@ class GcodeMachine:
         self._axes_words = ["X", "Y", "Z"]
         for i in range(0, 3):
             word = self._axes_words[i]
-            self._axes_regexps.append(re.compile(".*" + word + "([-.\d]+)"))
+            self._axes_regexps.append(re.compile('.*' + word + r'([-.\d]+)'))
 
         self._offset_regexps = []
         self._offset_words = ["I", "J", "K"]
         for i in range(0, 3):
             word = self._offset_words[i]
-            self._offset_regexps.append(re.compile(".*" + word + "([-.\d]+)"))
+            self._offset_regexps.append(re.compile('.*' + word + r'([-.\d]+)'))
 
-        self._re_radius = re.compile(".*R([-.\d]+)")
+        self._re_radius = re.compile(r'.*R([-.\d]+)')
 
-        self._re_use_var = re.compile("#(\d*)")
-        self._re_set_var = re.compile("^\s*#(\d+)=([\d.-]+)")
+        self._re_use_var = re.compile(r'#(\d*)')
+        self._re_set_var = re.compile(r'^\s*#(\d+)=([\d.-]+)')
 
-        self._re_feed = re.compile(".*F([.\d]+)")
-        self._re_feed_replace = re.compile(r"F[.\d]+")
+        self._re_feed = re.compile(r'.*F([.\d]+)')
+        self._re_feed_replace = re.compile(r'F[.\d]+')
 
-        self._re_spindle = re.compile(".*S([\d]+)")
-        self._re_spindle_replace = re.compile(r"S[.\d]+")
+        self._re_spindle = re.compile(r'.*S([\d]+)')
+        self._re_spindle_replace = re.compile(r'S[.\d]+')
 
-        self._re_motion_mode = re.compile("G([0123])*([^\\d]|$)")
-        self._re_distance_mode = re.compile("(G9[01])([^\d]|$)")
-        self._re_plane_mode = re.compile("(G1[789])([^\d]|$)")
-        self._re_cs = re.compile("(G5[4-9])")
+        self._re_motion_mode = re.compile('G([0123])*([^\\d]|$)')
+        self._re_distance_mode = re.compile(r'(G9[01])([^\d]|$)')
+        self._re_plane_mode = re.compile(r'(G1[789])([^\d]|$)')
+        self._re_cs = re.compile(r'(G5[4-9])')
 
-        self._re_comment_paren_convert = re.compile("(.*)\((.*?)\)\s*$")
-        self._re_comment_paren_replace = re.compile(r"\(.*?\)")
-        self._re_comment_get_comment = re.compile("(.*?)(;.*)")
+        self._re_comment_paren_convert = re.compile(r'(.*)\((.*?)\)\s*$')
+        self._re_comment_paren_replace = re.compile(r'\(.*?\)')
+        self._re_comment_get_comment = re.compile(r'(.*?)(;.*)')
 
-        self._re_match_cmd_number = re.compile("([GMT])(\d+)")
-        self._re_expand_multicommands = re.compile("([GMT])")
+        self._re_match_cmd_number = re.compile(r'([GMT])(\d+)')
+        self._re_expand_multicommands = re.compile(r'([GMT])')
 
         # @var whitelist_commands
         # Strip line from everything that is not in this list
@@ -345,7 +351,7 @@ class GcodeMachine:
         changed.
         """
         commands = re.sub(self._re_expand_multicommands,
-                          "\n\g<0>", self.line).strip()
+                          r'\n\g<0>', self.line).strip()
         lines = commands.split("\n")
         lines[0] = lines[0] + self.comment  # preserve comment
         return lines
@@ -368,14 +374,18 @@ class GcodeMachine:
             cmd = matchobj.group(1)
             cmd_nr = int(matchobj.group(2))
             self.line_is_unsupported_cmd = not (
-                cmd in self.whitelist_commands and cmd_nr in self.whitelist_commands[cmd])
-            return "{}{:02d}".format(cmd, cmd_nr)
+                cmd in self.whitelist_commands
+                and cmd_nr in self.whitelist_commands[cmd]
+            )
+            return '{}{:02d}'.format(cmd, cmd_nr)
 
         self.line = re.sub(self._re_match_cmd_number,
                            format_cmd_number, self.line)
 
         if self.line_is_unsupported_cmd:
-            self.line = ";" + self.line + " ;" + self.special_comment_prefix + ".unsupported"
+            self.line = ';' + self.line + \
+                    ' ;' + self.special_comment_prefix + \
+                    '.unsupported'
 
     def parse_state(self):
         """
@@ -467,8 +477,11 @@ class GcodeMachine:
                 self.target_w[i] = self.pos_w[i]
 
         # calculate travelling distance
-        self.dist = math.sqrt(self.dist_xyz[0] * self.dist_xyz[0] + self.dist_xyz[1]
-                              * self.dist_xyz[1] + self.dist_xyz[2] * self.dist_xyz[2])
+        self.dist = math.sqrt(
+            self.dist_xyz[0] * self.dist_xyz[0] +
+            self.dist_xyz[1] * self.dist_xyz[1] +
+            self.dist_xyz[2] * self.dist_xyz[2]
+        )
 
     def fractionize(self):
         """
@@ -481,11 +494,15 @@ class GcodeMachine:
 
         result = []
 
-        if self.do_fractionize_lines == True and self.current_motion_mode == 1 and self.dist > self.fract_linear_threshold:
-            result = self._fractionize_linear_motion()
+        if (self.do_fractionize_lines
+                and self.current_motion_mode == 1
+                and self.dist > self.fract_linear_threshold):
+            result = self.__fractionize_linear_motion()
 
-        elif self.do_fractionize_arcs == True and (self.current_motion_mode == 2 or self.current_motion_mode == 3):
-            result = self._fractionize_circular_motion()
+        elif (self.do_fractionize_arcs and
+              (self.current_motion_mode == 2 or self.current_motion_mode == 3)
+              ):
+            result = self.__fractionize_circular_motion()
 
         else:
             # this motion cannot be fractionized
@@ -497,9 +514,10 @@ class GcodeMachine:
 
     def done(self):
         """
-        When all processing/inspecting of a command has been done, call this method.
-        This will virtually 'move' the tool of the machine if the current command
-        is a motion command.
+        Call this method when all processing/inspecting of a command
+        has been done.
+        This will virtually 'move' the tool of the machine
+        if the current command is a motion command.
         """
         if not (self.current_motion_mode == 0 or self.current_motion_mode == 1):
             # only G0 and G1 can stay active without re-specifying
@@ -508,7 +526,7 @@ class GcodeMachine:
         # move the 'tool'
         for i in range(0, 3):
             # loop over X, Y, Z axes
-            if self.target_m[i] != None:  # keep state
+            if self.target_m[i] is not None:  # keep state
                 self.pos_m[i] = self.target_m[i]
                 self.pos_w[i] = self.target_w[i]
 
@@ -533,7 +551,7 @@ class GcodeMachine:
         # find variable usages
         keys = re.findall(self._re_use_var, self.line)
         for key in keys:
-            if not key in self.vars:
+            if key not in self.vars:
                 self.vars[key] = None
 
     def substitute_vars(self):
@@ -547,7 +565,7 @@ class GcodeMachine:
             if key in self.vars:
                 val = self.vars[key]
 
-            if val == None:
+            if val is None:
                 self.line = ""
                 self.callback("on_var_undefined", key)
                 return self.line
@@ -570,13 +588,13 @@ class GcodeMachine:
         *
         """
 
-        if self.do_feed_override == False and self.contains_feed:
+        if not self.do_feed_override and self.contains_feed:
             # Notify caller of detected feed in current line (useful for UIs)
             if self.current_feed != self.feed_in_current_line:
                 self.callback("on_feed_change", self.feed_in_current_line)
             self.current_feed = self.feed_in_current_line
 
-        if self.do_feed_override == True and self.request_feed:
+        if self.do_feed_override and self.request_feed:
 
             if self.contains_feed:
                 # strip the original F setting
@@ -598,7 +616,7 @@ class GcodeMachine:
 
         # transform () comment at end of line into semicolon comment
         self.line = re.sub(self._re_comment_paren_convert,
-                           "\g<1>;\g<2>", self.line)
+                           r'\g<1>;\g<2>', self.line)
 
         # remove all in-line () comments
         self.line = re.sub(self._re_comment_paren_replace, "", self.line)
@@ -610,25 +628,26 @@ class GcodeMachine:
         else:
             self.comment = ""
 
-    def _fractionize_circular_motion(self):
+    # 'private' methods
+
+    def __fractionize_circular_motion(self):
         """
         This function is a direct port of Grbl's C code into Python (gcode.c)
         with slight refactoring for Python by Michael Franzl.
         See https://github.com/grbl/grbl
-
         """
 
         # implies self.current_motion_mode == 2 or self.current_motion_mode == 3
 
-        if self.current_plane_mode == "G17":
+        if self.current_plane_mode == 'G17':
             axis_0 = 0  # X axis
             axis_1 = 1  # Y axis
             axis_linear = 2  # Z axis
-        elif self.current_plane_mode == "G18":
+        elif self.current_plane_mode == 'G18':
             axis_0 = 2  # Z axis
             axis_1 = 0  # X axis
             axis_linear = 1  # Y axis
-        elif self.current_plane_mode == "G19":
+        elif self.current_plane_mode == 'G19':
             axis_0 = 1  # Y axis
             axis_1 = 2  # Z axis
             axis_linear = 0  # X axis
@@ -671,7 +690,7 @@ class GcodeMachine:
         else:
             # CENTER OFFSET MODE, no R given so must be calculated
 
-            if self.offset[axis_0] == None or self.offset[axis_1] == None:
+            if self.offset[axis_0] is None or self.offset[axis_1] is None:
                 raise Exception(
                     "Arc in Offset Mode: No offsets in plane. {}".format(self.line))
                 # self.logger.error("Arc in Offset Mode: No offsets in plane")
@@ -682,9 +701,12 @@ class GcodeMachine:
             y -= self.offset[axis_1]
             target_r = math.sqrt(x * x + y * y)
 
-            # Compute arc radius for mc_arc. Defined from current location to center.
+            # Compute arc radius for mc_arc.
+            # Defined from current location to center.
             self.radius = math.sqrt(
-                self.offset[axis_0] * self.offset[axis_0] + self.offset[axis_1] * self.offset[axis_1])
+                self.offset[axis_0] * self.offset[axis_0] +
+                self.offset[axis_1] * self.offset[axis_1]
+            )
 
             # Compute difference between current location and target radii for final error-checks.
             delta_r = math.fabs(target_r - self.radius)
@@ -692,24 +714,34 @@ class GcodeMachine:
                 if delta_r > 0.5:
                     raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(
                         self.radius, delta_r, self.line))
-                    # self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
-                    # return []
+
                 if delta_r > (0.001 * self.radius):
                     raise Exception("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(
                         self.radius, delta_r, self.line))
-                    # self.logger.warning("Arc in Offset Mode: Invalid Target. r={:f} delta_r={:f} {}".format(self.radius, delta_r, self.line))
-                    # return []
 
-        # print(self.pos_m, self.target, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
-
-        # print("MCARC", self.line, self.pos_w, self.target_w, self.offset, self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
-
-        gcode_list = self._mc_arc(self.pos_w, self.target_w, self.offset,
-                                  self.radius, axis_0, axis_1, axis_linear, is_clockwise_arc)
-
+        gcode_list = self.__mc_arc(
+                self.pos_w,
+                self.target_w,
+                self.offset,
+                self.radius,
+                axis_0,
+                axis_1,
+                axis_linear,
+                is_clockwise_arc
+        )
         return gcode_list
 
-    def _mc_arc(self, position, target, offset, radius, axis_0, axis_1, axis_linear, is_clockwise_arc):
+    def __mc_arc(
+            self,
+            position,
+            target,
+            offset,
+            radius,
+            axis_0,
+            axis_1,
+            axis_linear,
+            is_clockwise_arc
+            ):
         """
         This function is a direct port of Grbl's C code into Python (motion_control.c)
         with slight refactoring for Python by Michael Franzl.
@@ -737,7 +769,9 @@ class GcodeMachine:
         rt_axis1 = target[axis_1] - center_axis1
 
         angular_travel = math.atan2(
-            r_axis0 * rt_axis1 - r_axis1 * rt_axis0, r_axis0 * rt_axis0 + r_axis1 * rt_axis1)
+            r_axis0 * rt_axis1 - r_axis1 * rt_axis0,
+            r_axis0 * rt_axis0 + r_axis1 * rt_axis1
+        )
 
         arc_tolerance = 0.004
         arc_angular_travel_epsilon = 0.0000005
@@ -749,10 +783,10 @@ class GcodeMachine:
             if angular_travel <= arc_angular_travel_epsilon:
                 angular_travel += 2*math.pi
 
-        segments = math.floor(math.fabs(0.5 * angular_travel * radius) /
-                              math.sqrt(arc_tolerance * (2 * radius - arc_tolerance)))
-
-        # print("angular_travel:{:f}, radius:{:f}, arc_tolerance:{:f}, segments:{:d}".format(angular_travel, radius, arc_tolerance, segments))
+        segments = math.floor(
+                math.fabs(0.5 * angular_travel * radius) /
+                math.sqrt(arc_tolerance * (2 * radius - arc_tolerance))
+        )
 
         words = ["X", "Y", "Z"]
         if segments:
@@ -803,7 +837,8 @@ class GcodeMachine:
                 gcodeline += txt
 
         if segments <= 1:
-            # no segments were rendered (very small arc) so we have to put S and F here
+            # no segments were rendered (very small arc)
+            # so we have to put S and F here
             if self.contains_feed:
                 gcodeline += "F{:.1f}".format(self.feed_in_current_line)
             if self.contains_spindle:
@@ -811,14 +846,14 @@ class GcodeMachine:
 
         gcode_list.append(gcodeline)
 
-        if do_restore_distance_mode == True:
+        if do_restore_distance_mode:
             gcode_list.append(self.current_distance_mode)
 
         gcode_list.append(";" + self.special_comment_prefix + ".arc_end")
 
         return gcode_list
 
-    def _fractionize_linear_motion(self):
+    def __fractionize_linear_motion(self):
         gcode_list = []
         gcode_list.append(";" + self.special_comment_prefix +
                           ".line_begin[{}]".format(self.line))
@@ -860,5 +895,5 @@ class GcodeMachine:
         gcode_list.append(";" + self.special_comment_prefix + ".line_end")
         return gcode_list
 
-    def _default_callback(self, status, *args):
+    def __default_callback(self, status, *args):
         print("PREPROCESSOR DEFAULT CALLBACK", status, args)

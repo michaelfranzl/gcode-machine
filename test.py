@@ -3,14 +3,14 @@ import unittest
 from gcode_machine import GcodeMachine
 
 
-class Test(unittest.TestCase):
+class GcodeMachineTest(unittest.TestCase):
     g55_offset = (10, 20, 30)
 
     def setUp(self):
         # initial conditions
         impos = (0, 0, 0)
         ics = 'G54'
-        cs_offsets = {'G54': (0, 0, 0), 'G55': Test.g55_offset}
+        cs_offsets = {'G54': (0, 0, 0), 'G55': GcodeMachineTest.g55_offset}
 
         # make a new machine
         self.gcm = GcodeMachine(impos, ics, cs_offsets)
@@ -41,7 +41,6 @@ class Test(unittest.TestCase):
         self.assertEqual(self.gcm.current_motion_mode, 0)
         self.assertEqual(self.gcm.current_distance_mode, 'G90')
         self.assertTrue(callback_received)
-
 
     def test_position_m_setter(self):
         self.gcm.current_cs = 'G55'
@@ -242,9 +241,9 @@ class Test(unittest.TestCase):
         self.gcm.set_line('G1 X100.5 Y100.6 Z100.7')
         self.gcm.parse_state()
 
-        self.assertEqual(self.gcm.target_m[0], 100.5 + Test.g55_offset[0])
-        self.assertEqual(self.gcm.target_m[1], 100.6 + Test.g55_offset[1])
-        self.assertEqual(self.gcm.target_m[2], 100.7 + Test.g55_offset[2])
+        self.assertEqual(self.gcm.target_m[0], 100.5 + GcodeMachineTest.g55_offset[0])
+        self.assertEqual(self.gcm.target_m[1], 100.6 + GcodeMachineTest.g55_offset[1])
+        self.assertEqual(self.gcm.target_m[2], 100.7 + GcodeMachineTest.g55_offset[2])
 
     def test_parse_state_distance_absolute(self):
         self.gcm.set_line('G0 X1 Y2 Z3')
@@ -258,9 +257,9 @@ class Test(unittest.TestCase):
         self.gcm.set_line('G1 X100.5 Y100.6 Z100.7')
         self.gcm.parse_state()
 
-        self.assertEqual(self.gcm.dist_xyz[0], 100.5 + Test.g55_offset[0] - 1)
-        self.assertEqual(self.gcm.dist_xyz[1], 100.6 + Test.g55_offset[1] - 2)
-        self.assertEqual(self.gcm.dist_xyz[2], 100.7 + Test.g55_offset[2] - 3)
+        self.assertEqual(self.gcm.dist_xyz[0], 100.5 + GcodeMachineTest.g55_offset[0] - 1)
+        self.assertEqual(self.gcm.dist_xyz[1], 100.6 + GcodeMachineTest.g55_offset[1] - 2)
+        self.assertEqual(self.gcm.dist_xyz[2], 100.7 + GcodeMachineTest.g55_offset[2] - 3)
         self.assertAlmostEqual(self.gcm.dist, 205.82395390235803)
 
     def test_parse_state_target_w_relative(self):
@@ -275,9 +274,9 @@ class Test(unittest.TestCase):
         self.gcm.set_line('G1 X100.5 Y100.6 Z100.7')
         self.gcm.parse_state()
 
-        self.assertEqual(self.gcm.target_w[0], 100.5 - Test.g55_offset[0] + 1)
-        self.assertEqual(self.gcm.target_w[1], 100.6 - Test.g55_offset[1] + 2)
-        self.assertEqual(self.gcm.target_w[2], 100.7 - Test.g55_offset[2] + 3)
+        self.assertEqual(self.gcm.target_w[0], 100.5 - GcodeMachineTest.g55_offset[0] + 1)
+        self.assertEqual(self.gcm.target_w[1], 100.6 - GcodeMachineTest.g55_offset[1] + 2)
+        self.assertEqual(self.gcm.target_w[2], 100.7 - GcodeMachineTest.g55_offset[2] + 3)
 
     def test_parse_state_target_m_relative(self):
         self.gcm.set_line('G0 X1 Y2 Z3')
@@ -328,9 +327,9 @@ class Test(unittest.TestCase):
         self.assertEqual(self.gcm.pos_w[1], 2)
         self.assertEqual(self.gcm.pos_w[2], 3)
 
-        self.assertEqual(self.gcm.pos_m[0], Test.g55_offset[0] + 1)
-        self.assertEqual(self.gcm.pos_m[1], Test.g55_offset[1] + 2)
-        self.assertEqual(self.gcm.pos_m[2], Test.g55_offset[2] + 3)
+        self.assertEqual(self.gcm.pos_m[0], GcodeMachineTest.g55_offset[0] + 1)
+        self.assertEqual(self.gcm.pos_m[1], GcodeMachineTest.g55_offset[1] + 2)
+        self.assertEqual(self.gcm.pos_m[2], GcodeMachineTest.g55_offset[2] + 3)
 
     def test_done_motion_mode(self):
         self.gcm.set_line('G2 X10 Y11 I6 J7 K8')
