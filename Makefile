@@ -1,5 +1,6 @@
+.PHONY: test
 test:
-	python -m unittest
+	PYTHONPATH=src python -m unittest
 
 dist: test
 	python -m build --sdist .
