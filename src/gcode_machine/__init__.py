@@ -62,7 +62,7 @@ class GcodeMachine:
             Default: {"G54": (0, 0, 0)}
         """
 
-        self.logger = logging.getLogger('gerbil')
+        self.logger = logging.getLogger('gcode_machine')
 
         # @var line
         # Holds the current Gcode line
@@ -302,8 +302,6 @@ class GcodeMachine:
                 5,
             ]
         }
-
-        self.logger.info("Preprocessor Class Initialized")
 
     def reset(self):
         """
@@ -586,7 +584,7 @@ class GcodeMachine:
                 return self.line
             else:
                 self.line = self.line.replace("#" + key, str(val))
-                self.logger.info("SUBSTITUTED VAR #{} -> {}".format(key, val))
+                self.logger.info("substituted variable #{} -> {}".format(key, val))
 
     def scale_spindle(self):
         if self.contains_spindle:
@@ -613,14 +611,14 @@ class GcodeMachine:
 
             if self.contains_feed:
                 # strip the original F setting
-                self.logger.info("STRIPPING FEED: " + self.line)
+                self.logger.info("stripping feed " + self.line)
                 self.line = re.sub(self._re_feed_replace,
                                    "", self.line).strip()
 
             if (self.current_feed != self.request_feed):
                 self.line += "F{:0.1f}".format(self.request_feed)
                 self.current_feed = self.request_feed
-                self.logger.info("OVERRIDING FEED: " + str(self.current_feed))
+                self.logger.info("overriding feed " + str(self.current_feed))
                 self.callback("on_feed_change", self.current_feed)
 
     def transform_comments(self):
@@ -911,4 +909,4 @@ class GcodeMachine:
         return gcode_list
 
     def __default_callback(self, status, *args):
-        print("PREPROCESSOR DEFAULT CALLBACK", status, args)
+        self.logger.info("default callback", status, args)
