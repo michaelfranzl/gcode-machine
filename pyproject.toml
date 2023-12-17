@@ -16,3 +16,10 @@ classifiers = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+  "Makefile",
+  ".*",
+  "test",
+]
