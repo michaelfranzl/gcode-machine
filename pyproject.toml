@@ -13,6 +13,10 @@ classifiers = [
   "Development Status :: 5 - Production/Stable",
 ]
 
+[project.urls]
+repository = "https://github.com/michaelfranzl/gcode-machine"
+
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
