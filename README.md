@@ -2,13 +2,11 @@
 
 ![Unit tests on master branch](https://github.com/michaelfranzl/gcode_machine/actions/workflows/test.yml/badge.svg?branch=master)
 
-Python3 module containing a class that emulates a simple CNC state machine
-that can be used for pre-processing and for realtime streaming of G-code to CNC controllers.
+CNC controller state machine for parsing and pre-processing of G-code, implemented as a Python 3 class.
 
-I split it off my project [gerbil](https://github.com/michaelfranzl/gerbil) to make it generally usable.
+I split it off my project [grbl-streamer](https://github.com/michaelfranzl/grbl-streamer) to make it generally usable.
 
-This machine is completely unit tested
-and was also successfully tested by realtime processing G-code for my wood-milling CNC machine.
+This machine is completely unit tested and was also successfully tested by realtime processing of G-code for my wood-milling CNC machine.
 
 
 ## Features
@@ -59,12 +57,38 @@ Last but not least, the attribute `logger` has a logger created by `logging.getL
 that can be used by the application.
 
 
-
 ## Installation
 
 ```sh
-python -m pip install gcode-machine
+pip install gcode-machine
 ```
+
+## Requirements
+
+* The Python version specified in the file `.python-version`
+
+
+## Development
+
+Dependencies are managed using `pipenv`:
+
+```sh
+pip install pipenv --user
+pipenv install --dev
+```
+
+To run the tests:
+
+```sh
+pipenv run make test
+```
+
+### Building
+
+```sh
+pipenv run make dist
+```
+
 
 ## Usage
 
