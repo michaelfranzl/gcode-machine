@@ -7,7 +7,7 @@ requires-python = ">=3.9"
 dependencies = [
     "numpy"
 ]
-license = {file = "LICENSE"}
+license = {file = "COPYING"}
 
 [tool.setuptools]
 packages = ["gcode_machine"]
